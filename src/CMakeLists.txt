@@ -9,9 +9,22 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 # Add subdirectory for json
 add_subdirectory(submodules/json)
 
+find_package(Boost REQUIRED COMPONENTS system filesystem thread regex)
+
+
+
+
 include_directories(${CMAKE_SOURCE_DIR}/Headers)
 
 add_executable(simulator Sources/main.cpp)
 
-# Link nlohmann_json library
-target_link_libraries(simulator PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(simulator PRIVATE 
+    Boost::system
+    Boost::filesystem
+    Boost::thread
+    Boost::regex
+    nlohmann_json::nlohmann_json
+)
+
+# Include Boost
+target_include_directories(simulator PRIVATE ${Boost_INCLUDE_DIRS})
