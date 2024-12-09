@@ -23,7 +23,7 @@
             clang-tools
             boost
             bear
-            # binutils
+            binutils
             cmake
             gnumake
           ];
