@@ -1,22 +1,7 @@
 #pragma once
 
 #include "common.h"
-
-class Session;
-
-struct SessionState {
-  enum Client { Unknown, Voice, Pilot, Examiner } program{Unknown};
-  bool isConnected{false};
-  std::string uid;
-  std::shared_ptr<Session> session;
-
-  std::function<void(std::string &)> read_cb = [](auto &msg) {
-    std::cout << "Message from client: " << msg << std::endl;
-  };
-  std::function<void(size_t)> write_cb = [](size_t bytesTransfered) {
-    std::cout << "Transfered bytes: " << bytesTransfered << std::endl;
-  };
-};
+#include "sessionState.h"
 
 class Session : public std::enable_shared_from_this<Session> {
   websocket::stream<beast::tcp_stream> _ws;
@@ -47,8 +32,6 @@ public:
     if (ec)
       return fail(ec, "accept");
 
-    // initialize();
-    // read loop
     do_read();
   }
 
@@ -81,8 +64,7 @@ public:
 
     std::string buff(beast::buffers_to_string(_recvBuffer.data()));
     _state->read_cb(buff);
-    // read_cb();
-    // do_read();
+    do_read();
   }
 
   void on_write(beast::error_code ec, std::size_t bytesTransferred) {
