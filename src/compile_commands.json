@@ -1,0 +1,27 @@
+[
+  {
+    "arguments": [
+      "/nix/store/4apajimszc47rxwcpvc3g3rj2icinl71-gcc-wrapper-13.3.0/bin/g++",
+      "-DBOOST_ATOMIC_DYN_LINK",
+      "-DBOOST_ATOMIC_NO_LIB",
+      "-DBOOST_FILESYSTEM_DYN_LINK",
+      "-DBOOST_FILESYSTEM_NO_LIB",
+      "-DBOOST_REGEX_DYN_LINK",
+      "-DBOOST_REGEX_NO_LIB",
+      "-DBOOST_SYSTEM_DYN_LINK",
+      "-DBOOST_SYSTEM_NO_LIB",
+      "-DBOOST_THREAD_DYN_LINK",
+      "-DBOOST_THREAD_NO_LIB",
+      "-I/home/kamo/Studia/INŻ/symulator/src/Headers",
+      "-I/home/kamo/Studia/INŻ/symulator/src/submodules/json/include",
+      "-std=gnu++17",
+      "-c",
+      "-o",
+      "CMakeFiles/simulator.dir/Sources/main.cpp.o",
+      "/home/kamo/Studia/INŻ/symulator/src/Sources/main.cpp"
+    ],
+    "directory": "/home/kamo/Studia/INŻ/symulator/build",
+    "file": "/home/kamo/Studia/INŻ/symulator/src/Sources/main.cpp",
+    "output": "/home/kamo/Studia/INŻ/symulator/build/CMakeFiles/simulator.dir/Sources/main.cpp.o"
+  }
+]
