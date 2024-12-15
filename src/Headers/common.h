@@ -26,6 +26,6 @@ namespace uuids = boost::uuids;
 using uuid = uuids::uuid;
 using tcp = boost::asio::ip::tcp;
 
-void fail(beast::error_code ec, char const *what) {
+inline void fail(beast::error_code ec, char const *what) {
   std::cerr << what << ": " << ec.message() << "\n";
 }

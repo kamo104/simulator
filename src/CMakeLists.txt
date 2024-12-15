@@ -16,7 +16,7 @@ find_package(Boost REQUIRED COMPONENTS system filesystem thread regex)
 
 include_directories(${CMAKE_SOURCE_DIR}/Headers)
 
-add_executable(simulator Sources/main.cpp)
+add_executable(simulator main.cpp)
 
 target_link_libraries(simulator PRIVATE 
     Boost::system

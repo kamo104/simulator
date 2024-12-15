@@ -57,18 +57,30 @@ private:
         net::make_strand(_ioc),
         beast::bind_front_handler(&Listener::on_accept, shared_from_this()));
   }
-
   void on_accept(beast::error_code ec, tcp::socket socket) {
     if (ec) {
       fail(ec, "accept");
     } else {
-      // Create the session and run it
       auto sessionState = std::make_shared<SessionState>();
-      sessionState->uid = uuids::to_string(_generator());
-      sessionState->isConnected = true;
-      _state->acceptCallback(sessionState);
+      sessionState->uuid = uuids::to_string(_generator());
+
+      sessionState->acceptCallback = [sessionState, this]() {
+        _state->acceptCallback(sessionState);
+      };
+      sessionState->disconnectCallback = [sessionState, this]() {
+        _state->disconnectCallback(sessionState);
+      };
+      sessionState->readCallback = [sessionState,
+                                    this](const std::string &msg) {
+        _state->readCallback(sessionState, msg);
+      };
+      sessionState->writeCallback = [sessionState, this](size_t len) {
+        _state->writeCallback(sessionState, len);
+      };
+
       sessionState->session =
-          std::make_shared<Session>(std::move(socket), _ioc);
+          std::make_shared<Session>(std::move(socket), _ioc, sessionState);
+
       sessionState->session->run();
     }
 

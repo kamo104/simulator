@@ -11,8 +11,9 @@ class Session : public std::enable_shared_from_this<Session> {
   beast::flat_buffer _recvBuffer;
 
 public:
-  explicit Session(tcp::socket &&socket, net::io_context &ioc)
-      : _ws(std::move(socket)), _strand(net::make_strand(ioc)) {}
+  explicit Session(tcp::socket &&socket, net::io_context &ioc,
+                   std::shared_ptr<SessionState> state)
+      : _ws(std::move(socket)), _strand(net::make_strand(ioc)), _state(state) {}
 
   // Start the asynchronous operation
   void run() {
@@ -29,21 +30,42 @@ public:
   }
 
   void on_accept(beast::error_code ec) {
-    if (ec)
+    if (ec) {
+      _state->isConnected = false;
       return fail(ec, "accept");
-
+    }
+    _state->isConnected = true;
     do_read();
+    _state->isConnected = false;
+    _state->disconnectCallback();
   }
 
+  // void send(const std::string &message) {
+  //   net::post(_strand, [self = shared_from_this(), &message]() {
+  //     beast::flat_buffer buffer;
+  //     auto mutable_buffer = buffer.prepare(message.size());
+  //     std::memcpy(mutable_buffer.data(), message.data(), message.size());
+  //     buffer.commit(message.size());
+  //     self->_ws.async_write(
+  //         buffer.data(), beast::bind_front_handler(&Session::on_write,
+  //         self));
+  //   });
+  // }
+
   void send(const std::string &message) {
-    net::post(_strand, [self = shared_from_this(), message]() {
-      beast::flat_buffer buffer;
-      auto mutable_buffer = buffer.prepare(message.size());
-      std::memcpy(mutable_buffer.data(), message.data(), message.size());
-      buffer.commit(message.size());
+    // Copy the message data into a shared buffer
+    auto buffer = std::make_shared<beast::flat_buffer>();
+    auto mutable_buffer = buffer->prepare(message.size());
+    std::memcpy(mutable_buffer.data(), message.data(), message.size());
+    buffer->commit(message.size());
+
+    // Post the work to the strand
+    net::post(_strand, [self = shared_from_this(), buffer]() {
       self->_ws.async_write(
-          self->_recvBuffer.data(),
-          beast::bind_front_handler(&Session::on_write, self));
+          buffer->data(),
+          [self, buffer](beast::error_code ec, std::size_t bytes_transferred) {
+            self->on_write(ec, bytes_transferred);
+          });
     });
   }
 
@@ -54,16 +76,19 @@ public:
     });
   }
 
-  void on_read(beast::error_code ec, std::size_t bytes_transferred) {
-    if (ec == websocket::error::closed)
+  void on_read(beast::error_code ec, std::size_t bytesTransferred) {
+    if (ec == websocket::error::closed) {
       return;
+    }
 
     if (ec)
       fail(ec, "read");
     _ws.text(_ws.got_text());
 
-    std::string buff(beast::buffers_to_string(_recvBuffer.data()));
-    _state->read_cb(buff);
+    std::string msg(beast::buffers_to_string(_recvBuffer.cdata()));
+    _recvBuffer.consume(bytesTransferred);
+    _state->readCallback(msg);
+
     do_read();
   }
 
@@ -71,6 +96,6 @@ public:
     if (ec)
       return fail(ec, "write");
 
-    _state->write_cb(bytesTransferred);
+    _state->writeCallback(bytesTransferred);
   }
 };

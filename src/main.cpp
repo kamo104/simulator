@@ -25,12 +25,11 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  // auto const address = net::ip::make_address(argv[1]);
   auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
   auto const threads = std::max<int>(1, std::atoi(argv[3]));
 
   WebsocketServer server(threads, std::string(argv[1]), port);
-  // server.run()
+  server.run();
 
   return EXIT_SUCCESS;
 }
