@@ -65,9 +65,11 @@ private:
       sessionState->uuid = uuids::to_string(_generator());
 
       sessionState->acceptCallback = [sessionState, this]() {
+        sessionState->isConnected = true;
         _state->acceptCallback(sessionState);
       };
       sessionState->disconnectCallback = [sessionState, this]() {
+        sessionState->isConnected = false;
         _state->disconnectCallback(sessionState);
       };
       sessionState->readCallback = [sessionState,

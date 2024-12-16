@@ -5,6 +5,7 @@
 
 class Session : public std::enable_shared_from_this<Session> {
   websocket::stream<beast::tcp_stream> _ws;
+  http::request<http::string_body> _req;
   net::strand<net::io_context::executor_type> _strand;
 
   std::shared_ptr<SessionState> _state;
@@ -25,32 +26,60 @@ public:
           res.set(http::field::server, "simulator websocket-server");
         }));
 
-    _ws.async_accept(
-        beast::bind_front_handler(&Session::on_accept, shared_from_this()));
-  }
+    auto self = shared_from_this();
+    http::async_read(
+        _ws.next_layer(), _recvBuffer, _req,
+        [self](beast::error_code ec, std::size_t bytes_transferred) {
+          self->on_http_read(ec, bytes_transferred);
+        });
 
+    // _ws.async_accept(
+    //     beast::bind_front_handler(&Session::on_accept, shared_from_this()));
+  }
+  void on_http_read(beast::error_code ec, std::size_t bytes_transferred) {
+    if (ec) {
+      std::cerr << "HTTP Read Error: " << ec.message() << "\n";
+      return;
+    }
+
+    // Access the target (path + query string)
+    std::string target = _req.target();
+    std::cout << "HTTP Target: " << target << "\n";
+
+    std::string query_string;
+    auto pos = target.find('?');
+    if (pos != std::string::npos) {
+      query_string = target.substr(pos + 1); // Get the query part after '?'
+    }
+
+    // Parse the query string
+    try {
+      auto parsed_query = urls::parse_query(query_string);
+      if (parsed_query.has_value()) {
+        for (auto key : *parsed_query) {
+          std::cout << key.key << " : " << key.value << std::endl;
+        }
+        auto client_id = parsed_query->find("clientId");
+        if (client_id != parsed_query->end()) {
+          std::cout << "Client ID: " << client_id->value << "\n";
+        } else {
+          std::cerr << "clientId parameter not found\n";
+        }
+      }
+    } catch (const std::exception &ex) {
+      std::cerr << "Error parsing query: " << ex.what() << "\n";
+    }
+
+    _ws.async_accept(_req, beast::bind_front_handler(&Session::on_accept,
+                                                     shared_from_this()));
+  }
   void on_accept(beast::error_code ec) {
     if (ec) {
-      _state->isConnected = false;
       return fail(ec, "accept");
     }
-    _state->isConnected = true;
+    _state->acceptCallback();
     do_read();
-    _state->isConnected = false;
-    _state->disconnectCallback();
   }
-
-  // void send(const std::string &message) {
-  //   net::post(_strand, [self = shared_from_this(), &message]() {
-  //     beast::flat_buffer buffer;
-  //     auto mutable_buffer = buffer.prepare(message.size());
-  //     std::memcpy(mutable_buffer.data(), message.data(), message.size());
-  //     buffer.commit(message.size());
-  //     self->_ws.async_write(
-  //         buffer.data(), beast::bind_front_handler(&Session::on_write,
-  //         self));
-  //   });
-  // }
 
   void send(const std::string &message) {
     // Copy the message data into a shared buffer
@@ -78,6 +107,7 @@ public:
 
   void on_read(beast::error_code ec, std::size_t bytesTransferred) {
     if (ec == websocket::error::closed) {
+      _state->disconnectCallback();
       return;
     }
 

@@ -9,7 +9,7 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 # Add subdirectory for json
 add_subdirectory(submodules/json)
 
-find_package(Boost REQUIRED COMPONENTS system filesystem thread regex)
+find_package(Boost REQUIRED COMPONENTS system filesystem thread regex url)
 
 
 
@@ -23,6 +23,7 @@ target_link_libraries(simulator PRIVATE
     Boost::filesystem
     Boost::thread
     Boost::regex
+    Boost::url
     nlohmann_json::nlohmann_json
 )
 

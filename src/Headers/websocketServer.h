@@ -8,40 +8,36 @@ class WebsocketServer {
   std::shared_ptr<ServerState> _state;
 
 public:
-  WebsocketServer(int threads, std::string address, uint16_t port) {
-    _state = std::make_shared<ServerState>();
-    _state->threads = threads;
-    _state->address = address;
-    _state->port = port;
+  WebsocketServer(std::shared_ptr<ServerState> state) : _state(state) {}
 
-    _state->acceptCallback = [this](auto state) {
-      this->newSession(state);
-      std::cout << "New client with uuid: " << state->uuid << std::endl;
-    };
-    _state->disconnectCallback = [this](auto state) {
-      std::cout << "Client disconnected with uuid: " << state->uuid
-                << std::endl;
-    };
-    _state->readCallback = [this](auto state, const auto &msg) {
-      std::cout << "Message from " << state->uuid << " : " << msg << std::endl;
-      // this->send(state->uuid, msg);
-      // this->broadcast(msg);
-    };
-    _state->writeCallback = [this](auto state, size_t len) {
-      std::cout << "Wrote message to: " << state->uuid << " len: " << len
-                << std::endl;
-    };
-  };
   void newSession(std::shared_ptr<SessionState> session) {
     _state->sessions.emplace(session->uuid, session);
   }
 
-  void send(std::string uuid, std::string message) {
+  std::shared_ptr<SessionState> getSession(const std::string &uuid) {
     auto it = _state->sessions.find(uuid);
     if (it == _state->sessions.end()) {
-      return;
+      return nullptr;
+    }
+    return it->second;
+  }
+
+  bool deleteSession(const std::string &uuid) {
+    auto it = _state->sessions.find(uuid);
+    if (it == _state->sessions.end()) {
+      return false;
+    }
+    _state->sessions.erase(it);
+    return true;
+  }
+
+  bool send(std::string uuid, std::string message) {
+    auto it = _state->sessions.find(uuid);
+    if (it == _state->sessions.end()) {
+      return false;
     }
     it->second->session->send(message);
+    return true;
   }
   void broadcast(std::string data) {
     for (auto &[key, val] : _state->sessions) {
