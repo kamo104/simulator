@@ -1,0 +1,29 @@
+[
+  {
+    "arguments": [
+      "/nix/store/4apajimszc47rxwcpvc3g3rj2icinl71-gcc-wrapper-13.3.0/bin/g++",
+      "-DBOOST_ATOMIC_DYN_LINK",
+      "-DBOOST_ATOMIC_NO_LIB",
+      "-DBOOST_FILESYSTEM_DYN_LINK",
+      "-DBOOST_FILESYSTEM_NO_LIB",
+      "-DBOOST_REGEX_DYN_LINK",
+      "-DBOOST_REGEX_NO_LIB",
+      "-DBOOST_SYSTEM_DYN_LINK",
+      "-DBOOST_SYSTEM_NO_LIB",
+      "-DBOOST_THREAD_DYN_LINK",
+      "-DBOOST_THREAD_NO_LIB",
+      "-DBOOST_URL_DYN_LINK",
+      "-DBOOST_URL_NO_LIB",
+      "-I/home/kgrzymkowski/Projects/inz/simulator/src/Headers",
+      "-I/home/kgrzymkowski/Projects/inz/simulator/src/submodules/json/include",
+      "-std=gnu++17",
+      "-c",
+      "-o",
+      "CMakeFiles/simulator.dir/main.cpp.o",
+      "/home/kgrzymkowski/Projects/inz/simulator/src/main.cpp"
+    ],
+    "directory": "/home/kgrzymkowski/Projects/inz/simulator/build",
+    "file": "/home/kgrzymkowski/Projects/inz/simulator/src/main.cpp",
+    "output": "/home/kgrzymkowski/Projects/inz/simulator/build/CMakeFiles/simulator.dir/main.cpp.o"
+  }
+]
