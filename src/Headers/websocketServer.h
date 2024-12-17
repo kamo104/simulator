@@ -5,10 +5,22 @@
 #include "websocketServerState.h"
 
 class WebsocketServer {
+  net::io_context _ioc;
   std::shared_ptr<ServerState> _state;
+  std::vector<std::thread> _threads;
 
 public:
-  WebsocketServer(std::shared_ptr<ServerState> state) : _state(state) {}
+  std::atomic_bool isRunning;
+
+  WebsocketServer(std::shared_ptr<ServerState> state)
+      : _state(state), _ioc(net::io_context{state->threads}) {
+    auto const addr = net::ip::make_address(_state->address);
+    // Create and launch a listening port
+    auto listener = std::make_shared<Listener>(
+        _ioc, tcp::endpoint{addr, _state->port}, _state);
+
+    listener->run();
+  }
 
   void newSession(std::shared_ptr<SessionState> session) {
     _state->sessions.emplace(session->uuid, session);
@@ -45,20 +57,23 @@ public:
     }
   }
 
+  void wait() {
+    if (!isRunning)
+      return;
+
+    for (std::thread &t : _threads) {
+      if (t.joinable()) {
+        t.join();
+      }
+    }
+  }
+
   void run() {
-    auto const addr = net::ip::make_address(_state->address);
-    // The io_context is required for all I/O
-    net::io_context ioc{_state->threads};
+    if (isRunning)
+      return;
 
-    // Create and launch a listening port
-    std::make_shared<Listener>(ioc, tcp::endpoint{addr, _state->port}, _state)
-        ->run();
-
-    // Run the I/O service on the requested number of threads
-    std::vector<std::thread> v;
-    v.reserve(_state->threads - 1);
-    for (auto i = _state->threads - 1; i > 0; --i)
-      v.emplace_back([&ioc] { ioc.run(); });
-    ioc.run();
+    isRunning = true;
+    for (int i = 0; i < _state->threads; i++)
+      _threads.emplace_back([this] { _ioc.run(); });
   }
 };

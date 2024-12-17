@@ -28,22 +28,25 @@ int main(int argc, char *argv[]) {
   auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
   auto const threads = std::max<int>(1, std::atoi(argv[3]));
 
-  std::unique_ptr<WebsocketServer> server;
-  std::shared_ptr<ServerState> state = std::make_shared<ServerState>();
-  state->threads = threads;
-  state->address = address;
-  state->port = port;
+  std::unique_ptr<WebsocketServer> websocketServer;
+  std::shared_ptr<ServerState> serverState = std::make_shared<ServerState>();
+  serverState->threads = threads;
+  serverState->address = address;
+  serverState->port = port;
 
-  state->acceptCallback = [&server](auto state) {
-    server->newSession(state);
-    std::cout << "New client with uuid: " << state->uuid << std::endl;
+  serverState->acceptCallback = [&websocketServer](auto sessionState) {
+    websocketServer->newSession(sessionState);
+    std::cout << "New client with uuid: " << sessionState->uuid << std::endl;
   };
-  state->disconnectCallback = [&server](std::shared_ptr<SessionState> state) {
-    server->deleteSession(state->uuid);
-    std::cout << "Client disconnected with uuid: " << state->uuid << std::endl;
+  serverState->disconnectCallback = [&websocketServer](auto sessionState) {
+    websocketServer->deleteSession(sessionState->uuid);
+    std::cout << "Client disconnected with uuid: " << sessionState->uuid
+              << std::endl;
   };
-  state->readCallback = [&server](auto state, const auto &msg) {
-    std::cout << "Message from " << state->uuid << " : " << msg << std::endl;
+  serverState->readCallback = [&websocketServer](auto sessionState,
+                                                 const auto &msg) {
+    std::cout << "Message from " << sessionState->uuid << " : " << msg
+              << std::endl;
     try {
       json jsonMsg = json::parse(msg);
       std::string msgType = jsonMsg["type"].template get<std::string>();
@@ -64,12 +67,15 @@ int main(int argc, char *argv[]) {
       std::cerr << "Wrong type used during parsing" << std::endl;
     }
   };
-  state->writeCallback = [&server](auto state, size_t len) {
-    std::cout << "Wrote message to: " << state->uuid << " len: " << len
+  serverState->writeCallback = [&websocketServer](auto sessionState,
+                                                  size_t len) {
+    std::cout << "Wrote message to: " << sessionState->uuid << " len: " << len
               << std::endl;
   };
-  server = std::make_unique<WebsocketServer>(state);
-  server->run();
+  websocketServer = std::make_unique<WebsocketServer>(serverState);
+  websocketServer->run();
+
+  websocketServer->wait();
 
   return EXIT_SUCCESS;
 }
