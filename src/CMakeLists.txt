@@ -9,9 +9,14 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 # Add subdirectory for json
 add_subdirectory(submodules/json)
 
+set(Boost_USE_STATIC_LIBS ON)
+# set(Boost_USE_STATIC_RUNTIME ON)
+
 find_package(Boost REQUIRED COMPONENTS system filesystem thread regex url)
 
-
+if(MSVC)
+    add_compile_options(/bigobj)
+endif()
 
 
 include_directories(${CMAKE_SOURCE_DIR}/Headers)

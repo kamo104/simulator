@@ -21,7 +21,20 @@
         devShell = pkgs.mkShell {
           buildInputs =  with pkgs; [
             clang-tools
-            boost
+            # boost
+            (boost.override { 
+              enableShared = false;
+              enableStatic = true;
+            })
+            # (icu.override { 
+            #   withStatic = true;
+            # })
+
+            (icu.overrideAttrs (oldAttrs: {
+              withStatic = true;
+            }))
+
+
             bear
             binutils
             cmake
