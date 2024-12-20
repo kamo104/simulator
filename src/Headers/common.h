@@ -27,6 +27,10 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
+#pragma comment(lib, "bcrypt.lib")
+
+typedef unsigned int uint;
+
 // uuid namespaces
 namespace uuids = boost::uuids;
 
