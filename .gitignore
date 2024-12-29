@@ -5,3 +5,4 @@ src/submodules/**
 
 **/compile_commands.json
 
+/.vs/

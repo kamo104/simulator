@@ -5,6 +5,8 @@
 #include "plane.h"
 #include "simulatorState.h"
 #include "vec.h"
+#include "planeConfig.h"
+#include <chrono>
 
 class Simulator {
   std::shared_ptr<SimulatorState> _state;
@@ -13,20 +15,30 @@ class Simulator {
   std::thread _workerThread;
 
   std::atomic_bool _runLoop{true};
+  std::chrono::steady_clock::time_point lastTime;
 
 public:
   std::atomic_bool running{false};
 
-  Simulator(std::shared_ptr<SimulatorState> state) : _state(state) {}
+  Simulator(std::shared_ptr<SimulatorState> state) : _state(state) {
+      std::cout << "starting" << std::endl;
+      start();
+  }
 
   bool isRunning() { return running; }
 
   void loop() {
+
     while (_runLoop) {
+      //calculating time delta
+      auto now = std::chrono::steady_clock::now();
+      double timeDelta = std::chrono::duration<double>(now - lastTime).count();
+      lastTime = now;
       // _state->planes;
       for (auto &plane : _state->planes) {
-        // plane.
+          plane.update(timeDelta);
       }
+      _sleep(50);
     }
   }
 
@@ -57,6 +69,7 @@ public:
 
     running = true;
     _runLoop = true;
+    lastTime = std::chrono::steady_clock::now();
 
     _workerThread = std::thread(&Simulator::loop, this);
     // for (int i = 0; i < _state->threads; i++) {
