@@ -7,7 +7,6 @@
 // Accepts incoming connections and launches the sessions
 class Listener : public std::enable_shared_from_this<Listener> {
   net::io_context &_ioc;
-  // std::shared_ptr<net::io_context> _ioc;
   tcp::acceptor _acceptor;
 
   std::shared_ptr<ServerState> _state;

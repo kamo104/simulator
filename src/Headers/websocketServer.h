@@ -19,6 +19,7 @@
 #include "common.h"
 #include "listener.h"
 #include "session.h"
+#include "sessionState.h"
 #include "websocketServerState.h"
 
 class WebsocketServer {
@@ -60,16 +61,33 @@ public:
     return true;
   }
 
-  bool send(std::string uuid, std::string message) {
+  bool send(std::string uuid, const std::string &data) {
     auto it = _state->sessions.find(uuid);
     if (it == _state->sessions.end()) {
       return false;
     }
-    it->second->session->send(message);
+    it->second->session->send(data);
     return true;
   }
-  void broadcast(std::string data) {
-    for (auto &[key, val] : _state->sessions) {
+
+  void broadcast(const std::string &data,
+                 // const std::vector<ClientType> &clientTypes,
+                 const std::vector<std::string> exceptUuids = {}) {
+    for (const auto &[key, val] : _state->sessions) {
+      // find uuid in exceptions
+      auto it = std::find(exceptUuids.begin(), exceptUuids.end(), val->uuid);
+      if (it != exceptUuids.end()) {
+        continue;
+      }
+
+      // // find clientType in allowed clientTypes
+      // auto it2 =
+      //     std::find(clientTypes.begin(), clientTypes.end(), val->clientType);
+      // if (it2 == clientTypes.end()) {
+      //   continue;
+      // }
+
+      // finally send the data
       val->session->send(data);
     }
   }

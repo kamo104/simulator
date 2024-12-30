@@ -1,14 +1,14 @@
 #pragma once
 #include "common.h"
-#include "Geopos.h"
-#include "Velocity.h"
+#include "geoPos.h"
+#include "velocity.h"
 
 struct FlightSegment {
-    GeoPos<double> targetPos;
-    Velocity targetVel;
-    bool ignoreHeading;
+  GeoPos<double> targetPos;
+  Velocity targetVel;
+  bool ignoreHeading;
 };
 
 struct FlightPlan {
-    std::vector<FlightSegment> route;
+  std::vector<FlightSegment> route;
 };

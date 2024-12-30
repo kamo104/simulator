@@ -3,44 +3,61 @@
 #include "geoPos.h"
 #include "map.h"
 #include "plane.h"
+#include "planeConfig.h"
 #include "simulatorState.h"
 #include "vec.h"
-#include "planeConfig.h"
+#include "websocketServer.h"
 #include <chrono>
+#include <mutex>
+#include <thread>
 
 class Simulator {
   std::shared_ptr<SimulatorState> _state;
-  // std::vector<std::shared_ptr<SimulatorThreadState>> _threads;
-  // std::vector<std::thread> _threads;
+  std::shared_ptr<WebsocketServer> _wsServer;
   std::thread _workerThread;
 
   std::atomic_bool _runLoop{true};
-  std::chrono::steady_clock::time_point lastTime;
+  std::chrono::steady_clock::time_point _lastTime;
+
+  void _loop() {
+    while (_runLoop) {
+      // calculating time delta
+      auto now = std::chrono::steady_clock::now();
+      auto deltaDuration = std::chrono::duration<double>(now - _lastTime);
+      _lastTime = now;
+
+      double timeDelta = deltaDuration.count();
+
+      // updating planes
+      {
+        std::lock_guard<std::shared_mutex> guard(*_state->mtx);
+        for (auto &plane : _state->planes) {
+          plane.update(timeDelta);
+        }
+      }
+
+      // TODO: send updated planes' positionis
+      std::vector<data::PlaneFlightData> flightData;
+      flightData.reserve(_state->planes.size());
+      for (const auto &plane : _state->planes) {
+        flightData.emplace_back(plane.getFlightData());
+      }
+      json j = flightData;
+      _wsServer->broadcast(j.dump());
+
+      auto n2 = std::chrono::steady_clock::now();
+      std::this_thread::sleep_for(_state->updateInterval - (n2 - now));
+    }
+  }
 
 public:
   std::atomic_bool running{false};
 
-  Simulator(std::shared_ptr<SimulatorState> state) : _state(state) {
-      std::cout << "starting" << std::endl;
-      start();
-  }
+  Simulator(std::shared_ptr<SimulatorState> state,
+            std::shared_ptr<WebsocketServer> wsServer)
+      : _state(state), _wsServer(wsServer) {}
 
   bool isRunning() { return running; }
-
-  void loop() {
-
-    while (_runLoop) {
-      //calculating time delta
-      auto now = std::chrono::steady_clock::now();
-      double timeDelta = std::chrono::duration<double>(now - lastTime).count();
-      lastTime = now;
-      // _state->planes;
-      for (auto &plane : _state->planes) {
-          plane.update(timeDelta);
-      }
-      _sleep(50);
-    }
-  }
 
   void stop() { _runLoop = false; }
 
@@ -50,11 +67,6 @@ public:
       return;
     }
 
-    // for (auto &t : _threads) {
-    //   if (t->_thread.joinable()) {
-    //     t->_thread.join();
-    //   }
-    // }
     if (_workerThread.joinable()) {
       _workerThread.join();
     }
@@ -67,16 +79,11 @@ public:
       return;
     }
 
+    std::cout << "starting plane simulation" << std::endl;
     running = true;
     _runLoop = true;
-    lastTime = std::chrono::steady_clock::now();
+    _lastTime = std::chrono::steady_clock::now();
 
-    _workerThread = std::thread(&Simulator::loop, this);
-    // for (int i = 0; i < _state->threads; i++) {
-    //   std::shared_ptr<SimulatorThreadState> threadState =
-    //       std::make_shared<SimulatorThreadState>();
-    //   threadState->_thread = std::thread(&Simulator::loop, this);
-    //   _threads.emplace_back(threadState);
-    // }
+    _workerThread = std::thread(&Simulator::_loop, this);
   }
 };

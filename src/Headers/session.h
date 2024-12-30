@@ -59,12 +59,25 @@ public:
         for (auto key : *parsed_query) {
           std::cout << key.key << " : " << key.value << std::endl;
         }
-        auto client_id = parsed_query->find("clientId");
-        if (client_id != parsed_query->end()) {
-          std::cout << "Client ID: " << client_id->value << "\n";
-        } else {
-          std::cerr << "clientId parameter not found\n";
-        }
+
+        // TODO: discuss whether it's a good idea to track sessions
+        // // clientId parameter
+        // auto client_id = parsed_query->find("clientId");
+        // if (client_id != parsed_query->end()) {
+        //   std::cout << "Client ID: " << client_id->value << "\n";
+        // } else {
+        //   std::cerr << "clientId parameter not found\n";
+        // }
+
+        // // program type parameter
+        // auto it = parsed_query->find("programType");
+        // if (it != parsed_query->end()) {
+        //   std::cout << "programType: " << it->value << "\n";
+        //   std::string pt = std::string(it->value);
+        //   _state->clientType = ClientType::fromString(pt);
+        // } else {
+        //   std::cerr << "programType parameter not found\n";
+        // }
       }
     } catch (const std::exception &ex) {
       std::cerr << "Error parsing query: " << ex.what() << "\n";
