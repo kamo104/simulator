@@ -35,6 +35,7 @@ struct PlaneData {
 };
 
 inline void to_json(json &j, const PlaneData &p) {
+    
   j = json{{{"id", p.info.id},
             {"sim_id", p.info.sim_id},
             {"isGrounded", p.info.isGrounded},
@@ -46,8 +47,8 @@ inline void to_json(json &j, const PlaneData &p) {
             {"model", p.info.model}},
            {"velocity",
             {
-                {"heading", p.vel.heading},
-                {"value", p.vel.value},
+                {"heading", fixAngle(p.vel.heading-PI/2)}, //radian conversion
+                {"value", ms2kts(p.vel.value)}, // m/s to kts
             }},
            {"position",
             {{"latitude", p.pos.lat()},
@@ -126,6 +127,7 @@ inline void from_json(const json &j, PlaneFlightData &p) {
 } // namespace data
 
 class Plane {
+  bool vaildPathFound = true;
 public:
   std::string uuid{""};
   PlaneInfo info;
@@ -136,8 +138,8 @@ public:
   GeoPos<double> targetPos;
   double setClimbSpeed;
 
-  bool declaredEmergency;
-  bool ignoreFlightPlan;
+  bool declaredEmergency = false;
+  bool ignoreFlightPlan = false;
   FlightPlan flightPlan;
   std::unique_ptr<const PlaneConfig> config;
 
@@ -148,7 +150,7 @@ public:
     this->pos = pd.pos;
   }
   data::PlaneData getData() {
-    return data::PlaneData{this->info, this->vel, this->pos};
+    return data::PlaneData{this->info, this->vel, xy2geo(this->pos)}; //coordinate conversion
   }
 
   void setFlightData(const data::PlaneFlightData &pd) {
@@ -168,11 +170,11 @@ public:
     this->vel = data.vel;
     this->vel.value = std::min(std::max(vel.value, configPointer->minSpeed),
                                configPointer->maxSpeed);
-    this->pos = data.pos;
+    this->pos = geo2xy(data.pos);
     this->pos.alt() =
         std::min(std::max(pos.alt(), 0.0), configPointer->maxAltitude);
     this->flightPlan = flightplan;
-    this->ignoreFlightPlan = false;
+
     this->config = std::move(configPointer);
     setClimbSpeed = config->deafultClimbingSpeed;
 
@@ -181,11 +183,12 @@ public:
 
   void update(float timeDelta) {
     // Debug
-    std::cout << info.callSign << " target: " << targetPos
+    std::cout << info.callSign << " target: " << xy2geo(targetPos)
               << " dist: " << distance(pos, targetPos) << std::endl;
     std::cout << "Hdg: " << rad2dgr(vel.heading) << " Speed: " << vel.value
               << std::endl;
-    std::cout << "Pos: " << pos << std::endl << std::endl;
+    std::cout << "Pos(GEO): " << xy2geo(pos) << std::endl;
+    std::cout << "Pos (XY): " << pos << std::endl << std::endl;
     updateVelocity(timeDelta);
     updatePosition(timeDelta);
     updateFlightPlan();
@@ -195,41 +198,40 @@ public:
     double velDelta = targetVel.value - vel.value;
     vel.value += sgn(velDelta) *
                  std::min(std::abs(velDelta),
-                          std::pow(config->accelerationFactor, 2) / vel.value) *
-                 timeDelta;
+                          std::pow(config->accelerationFactor, 2) / vel.value) *  timeDelta;
     vel.value =
         std::min(std::max(vel.value, config->minSpeed), config->maxSpeed);
 
-    // simplest turning
-    double targetHeading = fixAngle(
-        std::atan2(targetPos.lat() - pos.lat(), targetPos.lon() - pos.lon()));
-    double hdgDelta = targetHeading - vel.heading;
+    double hdgDelta = findHeadingDelta(pos, targetPos);
     vel.heading += sgn(hdgDelta) *
                    std::min(std::abs(hdgDelta), getTurnFactor() * timeDelta);
     vel.heading = fixAngle(vel.heading);
   }
 
   void updatePosition(float timeDelta) {
-    pos.lat() += std::sin(vel.heading) * meter2lat(vel.value) * timeDelta;
-    pos.lon() +=
-        -std::cos(vel.heading) * meter2long(vel.value, pos.lat()) * timeDelta;
-
+    pos.lat() += std::sin(vel.heading) * vel.value * timeDelta;
+    pos.lon() += std::cos(vel.heading) * vel.value * timeDelta;
     double altitudeDelta = targetPos.alt() - pos.alt();
     pos.alt() += sgn(altitudeDelta) *
                  std::min(std::abs(altitudeDelta), setClimbSpeed * timeDelta);
     pos.alt() = std::max(std::min(pos.alt(), config->maxAltitude), 0.0);
   }
 
-  void updateFlightPlan(bool force = false, double margin = 0.02) {
+  void updateFlightPlan(bool force = false, double margin = 50) {
     if (force || distance(pos, targetPos) < margin) {
       if (flightPlan.route.size() == 0 && !info.isGrounded) {
         ignoreFlightPlan = true;
         return;
       }
       std::cout << "Changing Target " << std::endl;
-      targetPos = flightPlan.route.front().targetPos;
+      targetPos = geo2xy(flightPlan.route.front().targetPos);
       targetVel = flightPlan.route.front().targetVel;
+      if (!flightPlan.route.front().ignoreHeading) {
+          vaildPathFound = false;
+          generateHelperWaypoints();
+      }
       flightPlan.route.erase(flightPlan.route.begin());
+
     }
   }
 
@@ -238,4 +240,42 @@ private:
     double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
     return 9.81 / (vel.value * std::sqrt(std::pow(n, 2) - 1));
   }
+
+  double findHeadingDelta(GeoPos<double> pos, GeoPos<double> targetPos) {
+    double targetHeading = fixAngle(std::atan2(targetPos.lat() - pos.lat(), 
+                                               targetPos.lon() - pos.lon()));
+    //std::cout << "Target Hdg: " << rad2dgr(targetHeading) << std::endl;
+
+    //Check if turn is possible 
+    if (ignoreFlightPlan || checkMinRadius())  return 0;
+    
+    //Check if advanced pathfinding requires repositioning 
+    if (!vaildPathFound) {
+        generateHelperWaypoints();
+        return 0;
+    }
+
+    double hdgDelta = targetHeading - vel.heading;
+    double altDelta = (2 * PI - std::abs(hdgDelta)) * -sgn(hdgDelta);
+    if (std::abs(altDelta) < std::abs(hdgDelta)) hdgDelta = altDelta;
+    return hdgDelta;
+  }
+
+  bool checkMinRadius() {
+    double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
+    double r = std::sqrt(-std::pow(targetVel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2))));
+    GeoPos<double> A = { {pos.lat() + std::sin(vel.heading + PI / 2) * r, 
+                          pos.lon() + std::cos(vel.heading + PI / 2) * r, targetPos.alt()}};
+    GeoPos<double> B = { {pos.lat() - std::sin(vel.heading + PI / 2) * r,
+                          pos.lon() - std::cos(vel.heading + PI / 2) * r, targetPos.alt()}};
+    return (distance(targetPos, A) < r || distance(targetPos, B) < r);
+  }
+
+  void generateHelperWaypoints() {
+      //TO DO: check 4 circle non-overlaping match combinations and find coresponding 4 valid tangent lines
+      //if match exist stop ignoring heading delta -> vaildPathFound = true;
+  }
+
+
+
 };
