@@ -33,19 +33,19 @@ int main(int argc, char *argv[]) {
 
   PlaneInfo info = {0,        0,        false,  "LOT",        "286",
                     "SP-LVN", "LOT286", "2000", "Airbus A320"};
-  GeoPos<double> pos{{52, 18.8, 10000.0}};
+  GeoPos<double> pos{{52, 18, 10000.0}};
   FlightPlan plan;
   std::unique_ptr<const PlaneConfig> config =
       std::make_unique<const PlaneConfig>(
           PlaneConfig{60.5, 241.9, 12000, 25, 20, 1.1, 1.35});
 
-  plan.route.push_back(FlightSegment{GeoPos<double>{{52, 18, 11000.0}},
-                                     Velocity{250, 0.0}, true});
+  plan.route.push_back(FlightSegment{GeoPos<double>{{52, 18.05, 11000.0}},
+                                     Velocity{150, 0.0}, true});
   plan.route.push_back(FlightSegment{GeoPos<double>{{54, 18, 5000.0}},
                                      Velocity{240, 0.0}, true});
 
   simState->planes.push_back(
-      Plane(data::PlaneData{info, Velocity{150, dgr2rad(90)}, pos}, plan,
+      Plane(data::PlaneData{info, Velocity{80, dgr2rad(90)}, pos}, plan,
             std::move(config)));
   // Simulator sim(simState, websocketServer);
   // End of testing stuff
