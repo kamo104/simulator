@@ -274,6 +274,120 @@ private:
   void generateHelperWaypoints() {
       //TO DO: check 4 circle non-overlaping match combinations and find coresponding 4 valid tangent lines
       //if match exist stop ignoring heading delta -> vaildPathFound = true;
+    
+    GeoPos<double> tPos = geo2xy(flightPlan.route.front().targetPos);
+    Velocity       tVel = geo2xy(flightPlan.route.front().targetVel);
+
+
+
+    double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
+    double rr = -std::pow(targetVel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2)));
+    double r = std::sqrt(rr);
+
+    std::array<GeoPos<double>, 2> target_cs = {};
+    std::array<GeoPos<double>, 2> my_cs = {};
+
+    // left first
+    double angle;
+    angle = tVel.heading + PI/2;
+    target_cs[0] = {{std::sin(angle) * r + tPos.lat(), std::cos(angle) * r + tPos.lon(), tPos.alt()}};
+
+    angle = tVel.heading - PI/2;
+    target_cs[1] = {{std::sin(angle) * r + tPos.lat(), std::cos(angle) * r + tPos.lon(), tPos.alt()}};
+
+    
+    angle = this->vel.heading + PI/2;
+    my_cs[0] = {{std::sin(angle) * r + this->pos.lat(), std::cos(angle) * r + this->pos.lon(), this->pos.alt()}};
+
+    angle = this->vel.heading - PI/2;
+    my_cs[1] = {{std::sin(angle) * r + this->pos.lat(), std::cos(angle) * r + this->pos.lon(), this->pos.alt()}};
+    
+
+    auto get_non_intersections = [&]( 
+      const std::array<GeoPos<double>, 2>& t,
+      const std::array<GeoPos<double>, 2>& m
+      ) -> std::vector<std::pair<int,int>> {
+      std::vector<std::pair<int,int>> non_intersections;
+      
+      
+      for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+          double dy, dx;
+          dy = m[i].lat() - t[j].lat();
+          dx = m[i].lon() - t[j].lon();
+
+          if (dx*dx+dy*dy >= rr*4) {
+            non_intersections.push_back({j,i});
+          }
+        }  
+      }
+
+      return non_intersections;
+    };
+
+    auto non_intersections = get_non_intersections(target_cs, my_cs);
+    if (non_intersections.size() > 0) {
+      const auto& p = non_intersections[0];
+      const auto& tcenter = target_cs[p.first];
+      const auto& mcenter = my_cs[p.second];
+
+      double x1, x2, x3, x4, y1, y2, y3, y4;
+      x1 = mcenter.lon();
+      y1 = mcenter.lat();
+      x2 = tcenter.lon();
+      y2 = tcenter.lat();
+
+
+      if (p.first==p.second) {
+        // po tej samej stronie, sytuacja A
+        
+        double gamma = -std::atan2(y2-y1, x2-x1);
+        double beta = 0; // ??? u nas oba kola maja ten sam radius. pelen wzor to: asin((R-r)/sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))), gdzie R i r to oba promienie
+        double alpha = gamma - beta;
+
+        // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie, zalezy czy skrecamy w prawo, czy w lewo
+        x3 = x1 + r * std::sin(alpha);
+        y3 = y1 + r * std::cos(alpha);
+
+        x4 = x2 + r * std::sin(alpha);
+        y4 = y2 + r * std::cos(alpha);
+
+
+
+
+      } else {
+        // po przeciwnych stronach
+
+        double C = -(x1*x1)-(y1*y1)+4*rr+(x1+x2)*(x1+x2)/4+(y1+y2)*(y1+y2)/4-(x1-x2)*(x1-x2)/4-(y1-y2)*(y1-y2)/4;
+        double a = -((x2-x1)*x2+y2*(y2-y1));
+        double b = x2*C+(x2-x1)*x2*y2+y2*y2*(y2-y1);
+        double c = -x2*y2*C
+
+        double tempx, tempy;
+
+        tempx = (-b + std::sqrt(b*b-4*a*c)) / 2*a ;// funkcja kwadratowa, wiadomo powinno być +/- ale narazie jest sam +
+        tempy = (C-tempx*(x2-x1))/(y2-y1);
+
+        double alpha = -std::atan2(tempy, tempx);
+
+        // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie, zalezy czy skrecamy w prawo, czy w lewo
+        x3 = x1 + r * std::sin(-alpha);
+        y3 = y1 + r * std::cos(-alpha);
+
+        x4 = x2 + r * std::sin(alpha);
+        y4 = y2 + r * std::cos(alpha);
+      }
+
+      GeoPos<double> mtangent = {{y3, x3, mcenter.alt()}};
+      GeoPos<double> ttangent = {{y4, x4, tcenter.alt()}};
+      // dodac te dwa punkty do planu lotu (nie wiem jak), w kolejnosci mtangent, ttangent
+      
+    } else {
+      // lec prosto XD, wyjebane w skrecanie
+      // nie wiem co tu napisac
+    }
+
+
   }
 
 
