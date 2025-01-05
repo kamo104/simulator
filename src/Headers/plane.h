@@ -370,7 +370,7 @@ private:
 
       } else {
         // po przeciwnych stronach
-        double C = -(x1*x1)-(y1*y1)+4*rr+(x1+x2)*(x1+x2)/4+(y1+y2)*(y1+y2)/4-(x1-x2)*(x1-x2)/4-(y1-y2)*(y1-y2)/4;
+        double C = 4*rr + x1*(x2-x1) + y1*(y2-y1);
         double a = -((x2-x1)*x2+y2*(y2-y1));
         double b = x2*C+(x2-x1)*x2*y2+y2*y2*(y2-y1);
         double c = -x2 * y2 * C;
@@ -417,7 +417,5 @@ private:
 
 
   }
-
-
 
 };
