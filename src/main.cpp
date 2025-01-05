@@ -39,9 +39,9 @@ int main(int argc, char *argv[]) {
       std::make_unique<const PlaneConfig>(
           PlaneConfig{60.5, 241.9, 12000, 25, 20, 1.1, 1.35});
 
-  plan.route.push_back(FlightSegment{GeoPos<double>{{52, 18.05, 11000.0}},
-                                     Velocity{150, 0.0}, true});
-  plan.route.push_back(FlightSegment{GeoPos<double>{{54, 18, 5000.0}},
+  plan.route.push_back(FlightSegment{geo2xy(GeoPos<double>{{52, 18.05, 11000.0}}),
+                                     Velocity{150, 90.0}, false});
+  plan.route.push_back(FlightSegment{geo2xy(GeoPos<double>{{54, 18, 5000.0}}),
                                      Velocity{240, 0.0}, true});
 
   simState->planes.push_back(

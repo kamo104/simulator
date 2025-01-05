@@ -134,8 +134,7 @@ public:
   Velocity vel;
   GeoPos<double> pos;
 
-  Velocity targetVel;
-  GeoPos<double> targetPos;
+  FlightSegment target;
   double setClimbSpeed;
 
   bool declaredEmergency = false;
@@ -157,7 +156,7 @@ public:
     // TODO: maybe implement a better function of setting the data
     this->pos = pd.pos;
     this->vel = pd.vel;
-    this->targetPos = pd.targetPos;
+    this->target.pos = pd.targetPos;
   }
   data::PlaneFlightData getFlightData() const {
     return data::PlaneFlightData{this->info.id, this->info.squawk, this->vel,
@@ -183,26 +182,26 @@ public:
 
   void update(float timeDelta) {
     // Debug
-    std::cout << info.callSign << " target: " << xy2geo(targetPos)
-              << " dist: " << distance(pos, targetPos) << std::endl;
+    std::cout << info.callSign << " target: " << xy2geo(target.pos)
+              << " dist: " << distance(pos, target.pos) << std::endl;
     std::cout << "Hdg: " << rad2dgr(vel.heading) << " Speed: " << vel.value
               << std::endl;
     std::cout << "Pos(GEO): " << xy2geo(pos) << std::endl;
     std::cout << "Pos (XY): " << pos << std::endl << std::endl;
+    updateFlightPlan();
     updateVelocity(timeDelta);
     updatePosition(timeDelta);
-    updateFlightPlan();
   }
 
   void updateVelocity(float timeDelta) {
-    double velDelta = targetVel.value - vel.value;
+    double velDelta = target.vel.value - vel.value;
     vel.value += sgn(velDelta) *
                  std::min(std::abs(velDelta),
                           std::pow(config->accelerationFactor, 2) / vel.value) *  timeDelta;
     vel.value =
         std::min(std::max(vel.value, config->minSpeed), config->maxSpeed);
 
-    double hdgDelta = findHeadingDelta(pos, targetPos);
+    double hdgDelta = findHeadingDelta(pos, target.pos);
     vel.heading += sgn(hdgDelta) *
                    std::min(std::abs(hdgDelta), getTurnFactor() * timeDelta);
     vel.heading = fixAngle(vel.heading);
@@ -211,26 +210,33 @@ public:
   void updatePosition(float timeDelta) {
     pos.lat() += std::sin(vel.heading) * vel.value * timeDelta;
     pos.lon() += std::cos(vel.heading) * vel.value * timeDelta;
-    double altitudeDelta = targetPos.alt() - pos.alt();
+    double altitudeDelta = target.pos.alt() - pos.alt();
     pos.alt() += sgn(altitudeDelta) *
                  std::min(std::abs(altitudeDelta), setClimbSpeed * timeDelta);
     pos.alt() = std::max(std::min(pos.alt(), config->maxAltitude), 0.0);
   }
 
   void updateFlightPlan(bool force = false, double margin = 50) {
-    if (force || distance(pos, targetPos) < margin) {
-      if (flightPlan.route.size() == 0 && !info.isGrounded) {
+    if (force || distance(pos, target.pos) < margin) {
+      if (flightPlan.route.size() == 0 && flightPlan.auxiliary.size() == 0 && !info.isGrounded) {
         ignoreFlightPlan = true;
         return;
       }
       std::cout << "Changing Target " << std::endl;
-      targetPos = geo2xy(flightPlan.route.front().targetPos);
-      targetVel = flightPlan.route.front().targetVel;
-      if (!flightPlan.route.front().ignoreHeading) {
-          vaildPathFound = false;
-          generateHelperWaypoints();
+      FlightSegment next;
+      if (flightPlan.auxiliary.size()) flightPlan.auxiliary.pop_front(); 
+      else flightPlan.route.pop_front();
+      
+      if (!next.ignoreHeading) {
+        vaildPathFound = false;
+        generateHelperWaypoints();
+        next.ignoreHeading = true;
+        this->flightPlan.auxiliary.push_back(next);
       }
-      flightPlan.route.erase(flightPlan.route.begin());
+      else {
+        this->target = next;
+        //maybe coord transformation should be moved to scenerio loading
+      }
 
     }
   }
@@ -263,25 +269,23 @@ private:
 
   bool checkMinRadius() {
     double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
-    double r = std::sqrt(-std::pow(targetVel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2))));
+    double r = std::sqrt(-std::pow(target.vel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2))));
     GeoPos<double> A = { {pos.lat() + std::sin(vel.heading + PI / 2) * r, 
-                          pos.lon() + std::cos(vel.heading + PI / 2) * r, targetPos.alt()}};
+                          pos.lon() + std::cos(vel.heading + PI / 2) * r, target.pos.alt()}};
     GeoPos<double> B = { {pos.lat() - std::sin(vel.heading + PI / 2) * r,
-                          pos.lon() - std::cos(vel.heading + PI / 2) * r, targetPos.alt()}};
-    return (distance(targetPos, A) < r || distance(targetPos, B) < r);
+                          pos.lon() - std::cos(vel.heading + PI / 2) * r, target.pos.alt()}};
+    return (distance(target.pos, A) < r || distance(target.pos, B) < r);
   }
 
   void generateHelperWaypoints() {
       //TO DO: check 4 circle non-overlaping match combinations and find coresponding 4 valid tangent lines
       //if match exist stop ignoring heading delta -> vaildPathFound = true;
     
-    GeoPos<double> tPos = geo2xy(flightPlan.route.front().targetPos);
-    Velocity       tVel = geo2xy(flightPlan.route.front().targetVel);
-
-
+    GeoPos<double> tPos = geo2xy(flightPlan.route.front().pos);
+    Velocity       tVel = flightPlan.route.front().vel;
 
     double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
-    double rr = -std::pow(targetVel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2)));
+    double rr = -std::pow(target.vel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2)));
     double r = std::sqrt(rr);
 
     std::array<GeoPos<double>, 2> target_cs = {};
@@ -308,7 +312,6 @@ private:
       const std::array<GeoPos<double>, 2>& m
       ) -> std::vector<std::pair<int,int>> {
       std::vector<std::pair<int,int>> non_intersections;
-      
       
       for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 2; j++) {
@@ -361,16 +364,12 @@ private:
         }
         
 
-
-
-
       } else {
         // po przeciwnych stronach
-
         double C = -(x1*x1)-(y1*y1)+4*rr+(x1+x2)*(x1+x2)/4+(y1+y2)*(y1+y2)/4-(x1-x2)*(x1-x2)/4-(y1-y2)*(y1-y2)/4;
         double a = -((x2-x1)*x2+y2*(y2-y1));
         double b = x2*C+(x2-x1)*x2*y2+y2*y2*(y2-y1);
-        double c = -x2*y2*C
+        double c = -x2 * y2 * C;
 
         double tempx, tempy;
 
@@ -397,11 +396,14 @@ private:
 
       GeoPos<double> mtangent = {{y3, x3, mcenter.alt()}};
       GeoPos<double> ttangent = {{y4, x4, tcenter.alt()}};
-      // dodac te dwa punkty do planu lotu (nie wiem jak), w kolejnosci mtangent, ttangent
+
+
+      this->target = FlightSegment{ mtangent, tVel, true};
+      this->flightPlan.auxiliary.push_back({ ttangent, tVel, true });
+      this->vaildPathFound = true;
       
     } else {
-      // lec prosto XD, wyjebane w skrecanie
-      // nie wiem co tu napisac
+        this->vaildPathFound = false;
     }
 
 
