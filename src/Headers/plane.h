@@ -346,11 +346,20 @@ private:
         double alpha = gamma - beta;
 
         // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie, zalezy czy skrecamy w prawo, czy w lewo
-        x3 = x1 + r * std::sin(alpha);
-        y3 = y1 + r * std::cos(alpha);
+        if (p.first==1) {
+          x3 = x1 + r * std::sin(alpha);
+          y3 = y1 + r * std::cos(alpha);
 
-        x4 = x2 + r * std::sin(alpha);
-        y4 = y2 + r * std::cos(alpha);
+          x4 = x2 + r * std::sin(alpha);
+          y4 = y2 + r * std::cos(alpha);
+        } else {
+          x3 = x1 - r * std::sin(alpha);
+          y3 = y1 - r * std::cos(alpha);
+
+          x4 = x2 - r * std::sin(alpha);
+          y4 = y2 - r * std::cos(alpha);
+        }
+        
 
 
 
@@ -371,11 +380,19 @@ private:
         double alpha = -std::atan2(tempy, tempx);
 
         // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie, zalezy czy skrecamy w prawo, czy w lewo
-        x3 = x1 + r * std::sin(-alpha);
-        y3 = y1 + r * std::cos(-alpha);
+        if (p.first==1) {
+          x3 = x1 - r * std::sin(-alpha);
+          y3 = y1 - r * std::cos(-alpha);
 
-        x4 = x2 + r * std::sin(alpha);
-        y4 = y2 + r * std::cos(alpha);
+          x4 = x2 - r * std::sin(PI-alpha);
+          y4 = y2 - r * std::cos(PI-alpha);
+        } else {
+          x3 = x1 + r * std::sin(PI-alpha);
+          y3 = y1 + r * std::cos(PI-alpha);
+
+          x4 = x2 + r * std::sin(-alpha);
+          y4 = y2 + r * std::cos(-alpha);
+        }
       }
 
       GeoPos<double> mtangent = {{y3, x3, mcenter.alt()}};
