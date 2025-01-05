@@ -182,7 +182,7 @@ public:
 
   void update(float timeDelta) {
     // Debug
-    std::cout << info.callSign << " target: " << xy2geo(target.pos)
+    std::cout << info.callSign << " target: " << target.pos
               << " dist: " << distance(pos, target.pos) << std::endl;
     std::cout << "Hdg: " << rad2dgr(vel.heading) << " Speed: " << vel.value
               << std::endl;
@@ -222,16 +222,20 @@ public:
         ignoreFlightPlan = true;
         return;
       }
-      std::cout << "Changing Target " << std::endl;
       FlightSegment next;
-      if (flightPlan.auxiliary.size()) flightPlan.auxiliary.pop_front(); 
-      else flightPlan.route.pop_front();
+      if (flightPlan.auxiliary.size()) {
+        next = flightPlan.auxiliary.front();
+        flightPlan.auxiliary.pop_front();
+      }
+      else {
+          next = flightPlan.route.front();
+          flightPlan.route.pop_front();
+      }
       
-      if (!next.ignoreHeading) {
+      if (next.useHeading) {
+        std::cout << "Changing Target " << std::endl;
         vaildPathFound = false;
-        generateHelperWaypoints();
-        next.ignoreHeading = true;
-        this->flightPlan.auxiliary.push_back(next);
+        generateHelperWaypoints(next);
       }
       else {
         this->target = next;
@@ -257,7 +261,7 @@ private:
     
     //Check if advanced pathfinding requires repositioning 
     if (!vaildPathFound) {
-        generateHelperWaypoints();
+        generateHelperWaypoints(target);
         return 0;
     }
 
@@ -277,17 +281,17 @@ private:
     return (distance(target.pos, A) < r || distance(target.pos, B) < r);
   }
 
-  void generateHelperWaypoints() {
+  void generateHelperWaypoints(FlightSegment targetSegment) {
       //TO DO: check 4 circle non-overlaping match combinations and find coresponding 4 valid tangent lines
       //if match exist stop ignoring heading delta -> vaildPathFound = true;
     
-    GeoPos<double> tPos = geo2xy(flightPlan.route.front().pos);
-    Velocity       tVel = flightPlan.route.front().vel;
+    GeoPos<double> tPos = targetSegment.pos;
+    Velocity       tVel = targetSegment.vel;
 
     double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
-    double rr = -std::pow(target.vel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2)));
+    double rr = -std::pow(tVel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2)));
     double r = std::sqrt(rr);
-
+    std::cout << "R: " << r << std::endl;
     std::array<GeoPos<double>, 2> target_cs = {};
     std::array<GeoPos<double>, 2> my_cs = {};
 
@@ -394,16 +398,21 @@ private:
         }
       }
 
-      GeoPos<double> mtangent = {{y3, x3, mcenter.alt()}};
-      GeoPos<double> ttangent = {{y4, x4, tcenter.alt()}};
+      GeoPos<double> mtangent = {{y3, x3, tPos.alt()}};
+      GeoPos<double> ttangent = {{y4, x4, tPos.alt()}};
 
+      std::cout << "DEBUG - 1: " << mtangent << " 2: " << ttangent << std::endl;
 
-      this->target = FlightSegment{ mtangent, tVel, true};
-      this->flightPlan.auxiliary.push_back({ ttangent, tVel, true });
+      this->target = FlightSegment{ mtangent, tVel, false};
+      this->flightPlan.auxiliary.push_back({ ttangent, tVel, false });
+      targetSegment.useHeading = false;
+      this->flightPlan.auxiliary.push_back(targetSegment);
       this->vaildPathFound = true;
       
     } else {
+        std::cout << "DEBUG: Path not found\n";
         this->vaildPathFound = false;
+        this->target = targetSegment;
     }
 
 

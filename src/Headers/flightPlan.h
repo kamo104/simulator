@@ -7,7 +7,7 @@
 struct FlightSegment {
   GeoPos<double> pos;
   Velocity vel;
-  bool ignoreHeading;
+  bool useHeading;
 };
 
 struct FlightPlan {
