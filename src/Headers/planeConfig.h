@@ -11,4 +11,8 @@ struct PlaneConfig {
 
     double normalLoad;
     double maxLoad;
+
+    double landingSpeed;
+    double landingDecelration;
+    double landingDistance;
 };

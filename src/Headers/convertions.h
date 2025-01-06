@@ -5,9 +5,19 @@
 const double PI = 3.1415;
 const double G = 9.81;
 
+inline double fixAngle(double angle) {
+    while (angle < 0)
+        angle += 2 * PI;
+    while (angle > 2 * PI)
+        angle -= 2 * PI;
+    return angle;
+}
+
 inline double dgr2rad(double degrees) { return degrees * (PI / 180.0); }
+inline double hdg2rad(double degrees) { return dgr2rad(fixAngle(450 - degrees)); }
 
 inline double rad2dgr(double radian) { return radian * (180.0 / PI); }
+inline double rad2hdg(double degrees) { return fmod(450 - rad2dgr(degrees), 360.0); }
 
 inline double meter2lat(double distance) { return distance * 0.0000089831117; }
 
@@ -21,14 +31,6 @@ inline double distance(GeoPos<double> posA, GeoPos<double> posB) {
   return std::sqrt(std::pow(posA.lat() - posB.lat(), 2) +
                    std::pow(posA.lon() - posB.lon(), 2) +
                    std::pow(posA.alt() - posB.alt(), 2));
-}
-
-inline double fixAngle(double angle) {
-  while (angle < 0)
-    angle += 2 * PI;
-  while (angle > 2 * PI)
-    angle -= 2 * PI;
-  return angle;
 }
 
 inline double ms2kts(double value) { return value * 1.943844; }

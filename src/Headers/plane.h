@@ -9,6 +9,8 @@
 #include <atomic>
 #include <cmath>
 
+enum class FlightState { AUTO, HDG, AUX, GROUNDED };
+
 struct PlaneInfo {
   int id;
   int sim_id;
@@ -180,11 +182,26 @@ public:
     updateFlightPlan(true);
   }
 
+  void generateLandingWaypoints(bool orientation, double slopeAngle = 3, double distance = 5000) {
+      FlightSegment landingA = { {{52.423969, 16.81117, 0}}, {0.0, hdg2rad(100)}, true };
+      FlightSegment landingB = { {{52.418973, 16.837063,0}}, {0.0, hdg2rad(280)}, true };
+
+      FlightSegment choice = (orientation) ? landingB : landingA;
+      double dir = choice.useHeading - PI;
+      double alt = distance * std::tan(dgr2rad(slopeAngle));
+
+      GeoPos<double> waypoint = { {choice.pos.lat() + sin(dir) * distance,
+                                  choice.pos.lon() + cos(dir) * distance, alt} };
+      generateHelperWaypoints(FlightSegment{ waypoint, config->landingSpeed, false });
+      choice.vel.value = config->landingSpeed;
+      flightPlan.auxiliary.push_back(choice);
+  }
+
   void update(float timeDelta) {
     // Debug
     std::cout << info.callSign << " target: " << target.pos
               << " dist: " << distance(pos, target.pos) << std::endl;
-    std::cout << "Hdg: " << rad2dgr(vel.heading) << " Speed: " << vel.value
+    std::cout << "Hdg: " << rad2hdg(vel.heading) << " Speed: " << vel.value
               << std::endl;
     std::cout << "Pos(GEO): " << xy2geo(pos) << std::endl;
     std::cout << "Pos (XY): " << pos << std::endl << std::endl;
@@ -193,6 +210,7 @@ public:
     updatePosition(timeDelta);
   }
 
+private:
   void updateVelocity(float timeDelta) {
     double velDelta = target.vel.value - vel.value;
     vel.value += sgn(velDelta) *
@@ -216,7 +234,7 @@ public:
     pos.alt() = std::max(std::min(pos.alt(), config->maxAltitude), 0.0);
   }
 
-  void updateFlightPlan(bool force = false, double margin = 50) {
+  void updateFlightPlan(bool force = false, double margin = 10) {
     if (force || distance(pos, target.pos) < margin) {
       if (flightPlan.route.size() == 0 && flightPlan.auxiliary.size() == 0 && !info.isGrounded) {
         ignoreFlightPlan = true;
@@ -245,7 +263,6 @@ public:
     }
   }
 
-private:
   double getTurnFactor() {
     double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
     return 9.81 / (vel.value * std::sqrt(std::pow(n, 2) - 1));
@@ -257,7 +274,7 @@ private:
     //std::cout << "Target Hdg: " << rad2dgr(targetHeading) << std::endl;
 
     //Check if turn is possible 
-    if (ignoreFlightPlan || checkMinRadius())  return 0;
+    if (checkMinRadius())  return 0;
     
     //Check if advanced pathfinding requires repositioning 
     if (!vaildPathFound) {
