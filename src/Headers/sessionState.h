@@ -42,6 +42,7 @@ private:
 struct SessionState {
   // ClientType clientType = ClientType::Unknown;
   bool isConnected{false};
+  bool nextMsgIsScenario{false};
   std::string uuid;
   std::shared_ptr<Session> session;
 

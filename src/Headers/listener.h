@@ -59,7 +59,7 @@ private:
   }
   void on_accept(beast::error_code ec, tcp::socket socket) {
     if (ec) {
-      fail(ec, "accept");
+      fail(ec, "listener accept");
     } else {
       auto sessionState = std::make_shared<SessionState>();
       sessionState->uuid = uuids::to_string(_generator());

@@ -34,28 +34,31 @@ struct PlaneData {
   PlaneInfo info;
   Velocity vel;
   GeoPos<double> pos;
+  GeoPos<double> targetPos;
 };
 
 inline void to_json(json &j, const PlaneData &p) {
-    
-  j = json{{{"id", p.info.id},
-            {"sim_id", p.info.sim_id},
-            {"isGrounded", p.info.isGrounded},
-            {"airline", p.info.airline},
-            {"flightNumber", p.info.flightNumber},
-            {"planeNumber", p.info.planeNumber},
-            {"callSign", p.info.callSign},
-            {"squawk", p.info.squawk},
-            {"model", p.info.model}},
-           {"velocity",
-            {
-                {"heading", fixAngle(p.vel.heading-PI/2)}, //radian conversion
-                {"value", ms2kts(p.vel.value)}, // m/s to kts
-            }},
-           {"position",
-            {{"latitude", p.pos.lat()},
-             {"longitude", p.pos.lon()},
-             {"altitude", p.pos.alt()}}}};
+  j = json{
+      {"id", p.info.id},
+      {"sim_id", p.info.sim_id},
+      {"isGrounded", p.info.isGrounded},
+      {"airline", p.info.airline},
+      {"flight_number", p.info.flightNumber},
+      {"plane_number", p.info.planeNumber},
+      {"callSign", p.info.callSign},
+      {"squawk", p.info.squawk},
+      {"model", p.info.model},
+      {"velocity",
+       {{"direction", fixAngle(p.vel.heading - PI / 2)}, // radian conversion
+        {"value", ms2kts(p.vel.value)}}},                // m/s to kts
+      {"position",
+       {{"latitude", p.pos.lat()},
+        {"longitude", p.pos.lon()},
+        {"altitude", p.pos.alt()}}},
+      {"target",
+       {{"latitude", p.targetPos.lat()},
+        {"longitude", p.targetPos.lon()},
+        {"altitude", p.targetPos.alt()}}}};
 }
 
 inline void from_json(const json &j, PlaneData &p) {
@@ -71,13 +74,18 @@ inline void from_json(const json &j, PlaneData &p) {
   info.at("model").get_to(p.info.model);
 
   const auto &vel = j.at("velocity");
-  vel.at("heading").get_to(p.vel.heading);
+  vel.at("direction").get_to(p.vel.heading);
   vel.at("value").get_to(p.vel.value);
 
   const auto &pos = j.at("position");
   pos.at("latitude").get_to(p.pos.lat());
   pos.at("longitude").get_to(p.pos.lon());
   pos.at("altitude").get_to(p.pos.alt());
+
+  const auto &tar = j.at("target");
+  pos.at("latitude").get_to(p.targetPos.lat());
+  pos.at("longitude").get_to(p.targetPos.lon());
+  pos.at("altitude").get_to(p.targetPos.alt());
 }
 
 struct PlaneFlightData {
@@ -94,14 +102,14 @@ inline void to_json(json &j, const PlaneFlightData &p) {
            {"squawk", p.squawk},
            {"velocity",
             {
-                {"heading", p.vel.heading},
+                {"direction", p.vel.heading},
                 {"value", p.vel.value},
             }},
            {"position",
             {{"latitude", p.pos.lat()},
              {"longitude", p.pos.lon()},
              {"altitude", p.pos.alt()}}},
-           {"targetPosition",
+           {"target",
             {{"latitude", p.targetPos.lat()},
              {"longitude", p.targetPos.lon()},
              {"altitude", p.targetPos.alt()}}}};
@@ -113,7 +121,7 @@ inline void from_json(const json &j, PlaneFlightData &p) {
   j.at("id").get_to(p.id);
 
   const auto &vel = j.at("velocity");
-  vel.at("heading").get_to(p.vel.heading);
+  vel.at("direction").get_to(p.vel.heading);
   vel.at("value").get_to(p.vel.value);
 
   const auto &pos = j.at("position");
@@ -121,7 +129,7 @@ inline void from_json(const json &j, PlaneFlightData &p) {
   pos.at("longitude").get_to(p.pos.lon());
   pos.at("altitude").get_to(p.pos.alt());
 
-  const auto &targetPos = j.at("targetPosition");
+  const auto &targetPos = j.at("target");
   targetPos.at("latitude").get_to(p.targetPos.lat());
   targetPos.at("longitude").get_to(p.targetPos.lon());
   targetPos.at("altitude").get_to(p.targetPos.alt());
@@ -130,6 +138,7 @@ inline void from_json(const json &j, PlaneFlightData &p) {
 
 class Plane {
   bool vaildPathFound = true;
+
 public:
   std::string uuid{""};
   PlaneInfo info;
@@ -145,13 +154,16 @@ public:
   std::unique_ptr<const PlaneConfig> config;
 
   void setData(const data::PlaneData &pd) {
-    // TODO: implement a better function of setting the data
+    // TODO: maybe implement a better function of setting the data
     this->info = pd.info;
     this->vel = pd.vel;
     this->pos = pd.pos;
+    this->target.pos = pd.targetPos;
+    // data::PlaneFlightData pd2;
   }
-  data::PlaneData getData() {
-    return data::PlaneData{this->info, this->vel, xy2geo(this->pos)}; //coordinate conversion
+  data::PlaneData getData() const {
+    return data::PlaneData{this->info, this->vel,
+                           xy2geo(this->pos)}; // coordinate conversion
   }
 
   void setFlightData(const data::PlaneFlightData &pd) {
@@ -215,7 +227,8 @@ private:
     double velDelta = target.vel.value - vel.value;
     vel.value += sgn(velDelta) *
                  std::min(std::abs(velDelta),
-                          std::pow(config->accelerationFactor, 2) / vel.value) *  timeDelta;
+                          std::pow(config->accelerationFactor, 2) / vel.value) *
+                 timeDelta;
     vel.value =
         std::min(std::max(vel.value, config->minSpeed), config->maxSpeed);
 
@@ -236,7 +249,8 @@ private:
 
   void updateFlightPlan(bool force = false, double margin = 10) {
     if (force || distance(pos, target.pos) < margin) {
-      if (flightPlan.route.size() == 0 && flightPlan.auxiliary.size() == 0 && !info.isGrounded) {
+      if (flightPlan.route.size() == 0 && flightPlan.auxiliary.size() == 0 &&
+          !info.isGrounded) {
         ignoreFlightPlan = true;
         return;
       }
@@ -244,22 +258,19 @@ private:
       if (flightPlan.auxiliary.size()) {
         next = flightPlan.auxiliary.front();
         flightPlan.auxiliary.pop_front();
+      } else {
+        next = flightPlan.route.front();
+        flightPlan.route.pop_front();
       }
-      else {
-          next = flightPlan.route.front();
-          flightPlan.route.pop_front();
-      }
-      
+
       if (next.useHeading) {
         std::cout << "Changing Target " << std::endl;
         vaildPathFound = false;
         generateHelperWaypoints(next);
-      }
-      else {
+      } else {
         this->target = next;
-        //maybe coord transformation should be moved to scenerio loading
+        // maybe coord transformation should be moved to scenerio loading
       }
-
     }
   }
 
@@ -269,44 +280,50 @@ private:
   }
 
   double findHeadingDelta(GeoPos<double> pos, GeoPos<double> targetPos) {
-    double targetHeading = fixAngle(std::atan2(targetPos.lat() - pos.lat(), 
-                                               targetPos.lon() - pos.lon()));
-    //std::cout << "Target Hdg: " << rad2dgr(targetHeading) << std::endl;
+    double targetHeading = fixAngle(
+        std::atan2(targetPos.lat() - pos.lat(), targetPos.lon() - pos.lon()));
+    // std::cout << "Target Hdg: " << rad2dgr(targetHeading) << std::endl;
 
     //Check if turn is possible 
     if (checkMinRadius())  return 0;
     
     //Check if advanced pathfinding requires repositioning 
     if (!vaildPathFound) {
-        generateHelperWaypoints(target);
-        return 0;
+      generateHelperWaypoints(target);
+      return 0;
     }
 
     double hdgDelta = targetHeading - vel.heading;
     double altDelta = (2 * PI - std::abs(hdgDelta)) * -sgn(hdgDelta);
-    if (std::abs(altDelta) < std::abs(hdgDelta)) hdgDelta = altDelta;
+    if (std::abs(altDelta) < std::abs(hdgDelta))
+      hdgDelta = altDelta;
     return hdgDelta;
   }
 
   bool checkMinRadius() {
     double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
-    double r = std::sqrt(-std::pow(target.vel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2))));
-    GeoPos<double> A = { {pos.lat() + std::sin(vel.heading + PI / 2) * r, 
-                          pos.lon() + std::cos(vel.heading + PI / 2) * r, target.pos.alt()}};
-    GeoPos<double> B = { {pos.lat() - std::sin(vel.heading + PI / 2) * r,
-                          pos.lon() - std::cos(vel.heading + PI / 2) * r, target.pos.alt()}};
+    double r = std::sqrt(-std::pow(target.vel.value, 4) /
+                         (std::pow(G, 2) * (1 - std::pow(n, 2))));
+    GeoPos<double> A = {{pos.lat() + std::sin(vel.heading + PI / 2) * r,
+                         pos.lon() + std::cos(vel.heading + PI / 2) * r,
+                         target.pos.alt()}};
+    GeoPos<double> B = {{pos.lat() - std::sin(vel.heading + PI / 2) * r,
+                         pos.lon() - std::cos(vel.heading + PI / 2) * r,
+                         target.pos.alt()}};
     return (distance(target.pos, A) < r || distance(target.pos, B) < r);
   }
 
   void generateHelperWaypoints(FlightSegment targetSegment) {
-      //TO DO: check 4 circle non-overlaping match combinations and find coresponding 4 valid tangent lines
-      //if match exist stop ignoring heading delta -> vaildPathFound = true;
-    
+    // TO DO: check 4 circle non-overlaping match combinations and find
+    // coresponding 4 valid tangent lines if match exist stop ignoring heading
+    // delta -> vaildPathFound = true;
+
     GeoPos<double> tPos = targetSegment.pos;
-    Velocity       tVel = targetSegment.vel;
+    Velocity tVel = targetSegment.vel;
 
     double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
-    double rr = -std::pow(tVel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2)));
+    double rr =
+        -std::pow(tVel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2)));
     double r = std::sqrt(rr);
     std::cout << "R: " << r << std::endl;
     std::array<GeoPos<double>, 2> target_cs = {};
@@ -314,36 +331,37 @@ private:
 
     // left first
     double angle;
-    angle = tVel.heading + PI/2;
-    target_cs[0] = {{std::sin(angle) * r + tPos.lat(), std::cos(angle) * r + tPos.lon(), tPos.alt()}};
+    angle = tVel.heading + PI / 2;
+    target_cs[0] = {{std::sin(angle) * r + tPos.lat(),
+                     std::cos(angle) * r + tPos.lon(), tPos.alt()}};
 
-    angle = tVel.heading - PI/2;
-    target_cs[1] = {{std::sin(angle) * r + tPos.lat(), std::cos(angle) * r + tPos.lon(), tPos.alt()}};
+    angle = tVel.heading - PI / 2;
+    target_cs[1] = {{std::sin(angle) * r + tPos.lat(),
+                     std::cos(angle) * r + tPos.lon(), tPos.alt()}};
 
-    
-    angle = this->vel.heading + PI/2;
-    my_cs[0] = {{std::sin(angle) * r + this->pos.lat(), std::cos(angle) * r + this->pos.lon(), this->pos.alt()}};
+    angle = this->vel.heading + PI / 2;
+    my_cs[0] = {{std::sin(angle) * r + this->pos.lat(),
+                 std::cos(angle) * r + this->pos.lon(), this->pos.alt()}};
 
-    angle = this->vel.heading - PI/2;
-    my_cs[1] = {{std::sin(angle) * r + this->pos.lat(), std::cos(angle) * r + this->pos.lon(), this->pos.alt()}};
-    
+    angle = this->vel.heading - PI / 2;
+    my_cs[1] = {{std::sin(angle) * r + this->pos.lat(),
+                 std::cos(angle) * r + this->pos.lon(), this->pos.alt()}};
 
-    auto get_non_intersections = [&]( 
-      const std::array<GeoPos<double>, 2>& t,
-      const std::array<GeoPos<double>, 2>& m
-      ) -> std::vector<std::pair<int,int>> {
-      std::vector<std::pair<int,int>> non_intersections;
-      
+    auto get_non_intersections = [&](const std::array<GeoPos<double>, 2> &t,
+                                     const std::array<GeoPos<double>, 2> &m)
+        -> std::vector<std::pair<int, int>> {
+      std::vector<std::pair<int, int>> non_intersections;
+
       for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 2; j++) {
           double dy, dx;
           dy = m[i].lat() - t[j].lat();
           dx = m[i].lon() - t[j].lon();
 
-          if (dx*dx+dy*dy >= rr*4) {
-            non_intersections.push_back({j,i});
+          if (dx * dx + dy * dy >= rr * 4) {
+            non_intersections.push_back({j, i});
           }
-        }  
+        }
       }
 
       return non_intersections;
@@ -351,9 +369,9 @@ private:
 
     auto non_intersections = get_non_intersections(target_cs, my_cs);
     if (non_intersections.size() > 0) {
-      const auto& p = non_intersections[0];
-      const auto& tcenter = target_cs[p.first];
-      const auto& mcenter = my_cs[p.second];
+      const auto &p = non_intersections[0];
+      const auto &tcenter = target_cs[p.first];
+      const auto &mcenter = my_cs[p.second];
 
       double x1, x2, x3, x4, y1, y2, y3, y4;
       x1 = mcenter.lon();
@@ -361,16 +379,19 @@ private:
       x2 = tcenter.lon();
       y2 = tcenter.lat();
 
-
-      if (p.first==p.second) {
+      if (p.first == p.second) {
         // po tej samej stronie, sytuacja A
-        
-        double gamma = -std::atan2(y2-y1, x2-x1);
-        double beta = 0; // ??? u nas oba kola maja ten sam radius. pelen wzor to: asin((R-r)/sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))), gdzie R i r to oba promienie
+
+        double gamma = -std::atan2(y2 - y1, x2 - x1);
+        double beta =
+            0; // ??? u nas oba kola maja ten sam radius. pelen wzor to:
+               // asin((R-r)/sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))), gdzie R i r
+               // to oba promienie
         double alpha = gamma - beta;
 
-        // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie, zalezy czy skrecamy w prawo, czy w lewo
-        if (p.first==1) {
+        // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie,
+        // zalezy czy skrecamy w prawo, czy w lewo
+        if (p.first == 1) {
           x3 = x1 + r * std::sin(alpha);
           y3 = y1 + r * std::cos(alpha);
 
@@ -383,32 +404,34 @@ private:
           x4 = x2 - r * std::sin(alpha);
           y4 = y2 - r * std::cos(alpha);
         }
-        
 
       } else {
         // po przeciwnych stronach
-        double C = 4*rr + x1*(x2-x1) + y1*(y2-y1);
-        double a = -((x2-x1)*x2+y2*(y2-y1));
-        double b = x2*C+(x2-x1)*x2*y2+y2*y2*(y2-y1);
+        double C = 4 * rr + x1 * (x2 - x1) + y1 * (y2 - y1);
+        double a = -((x2 - x1) * x2 + y2 * (y2 - y1));
+        double b = x2 * C + (x2 - x1) * x2 * y2 + y2 * y2 * (y2 - y1);
         double c = -x2 * y2 * C;
 
         double tempx, tempy;
 
-        tempx = (-b + std::sqrt(b*b-4*a*c)) / 2*a ;// funkcja kwadratowa, wiadomo powinno być +/- ale narazie jest sam +
-        tempy = (C-tempx*(x2-x1))/(y2-y1);
+        tempx = (-b + std::sqrt(b * b - 4 * a * c)) / 2 *
+                a; // funkcja kwadratowa, wiadomo powinno być +/- ale narazie
+                   // jest sam +
+        tempy = (C - tempx * (x2 - x1)) / (y2 - y1);
 
         double alpha = -std::atan2(tempy, tempx);
 
-        // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie, zalezy czy skrecamy w prawo, czy w lewo
-        if (p.first==1) {
+        // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie,
+        // zalezy czy skrecamy w prawo, czy w lewo
+        if (p.first == 1) {
           x3 = x1 - r * std::sin(-alpha);
           y3 = y1 - r * std::cos(-alpha);
 
-          x4 = x2 - r * std::sin(PI-alpha);
-          y4 = y2 - r * std::cos(PI-alpha);
+          x4 = x2 - r * std::sin(PI - alpha);
+          y4 = y2 - r * std::cos(PI - alpha);
         } else {
-          x3 = x1 + r * std::sin(PI-alpha);
-          y3 = y1 + r * std::cos(PI-alpha);
+          x3 = x1 + r * std::sin(PI - alpha);
+          y3 = y1 + r * std::cos(PI - alpha);
 
           x4 = x2 + r * std::sin(-alpha);
           y4 = y2 + r * std::cos(-alpha);
@@ -420,19 +443,16 @@ private:
 
       std::cout << "DEBUG - 1: " << mtangent << " 2: " << ttangent << std::endl;
 
-      this->target = FlightSegment{ mtangent, tVel, false};
-      this->flightPlan.auxiliary.push_back({ ttangent, tVel, false });
+      this->target = FlightSegment{mtangent, tVel, false};
+      this->flightPlan.auxiliary.push_back({ttangent, tVel, false});
       targetSegment.useHeading = false;
       this->flightPlan.auxiliary.push_back(targetSegment);
       this->vaildPathFound = true;
-      
+
     } else {
-        std::cout << "DEBUG: Path not found\n";
-        this->vaildPathFound = false;
-        this->target = targetSegment;
+      std::cout << "DEBUG: Path not found\n";
+      this->vaildPathFound = false;
+      this->target = targetSegment;
     }
-
-
   }
-
 };

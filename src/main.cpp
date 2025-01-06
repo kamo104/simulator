@@ -19,6 +19,7 @@ int main(int argc, char *argv[]) {
   auto const threads = std::max<int>(1, std::atoi(argv[3]));
 
   std::shared_ptr<WebsocketServer> websocketServer;
+  std::unique_ptr<Simulator> simulator;
   std::shared_ptr<ServerState> serverState = std::make_shared<ServerState>();
   serverState->threads = threads;
   serverState->address = address;
@@ -60,10 +61,19 @@ int main(int argc, char *argv[]) {
     std::cout << "Client disconnected with uuid: " << sessionState->uuid
               << std::endl;
   };
-  serverState->readCallback = [&websocketServer, &simState](auto sessionState,
-                                                            const auto &msg) {
+
+  serverState->readCallback = [&websocketServer, &simState, &simulator](
+                                  std::shared_ptr<SessionState> sessionState,
+                                  const std::string &msg) {
     std::cout << "Message from " << sessionState->uuid << " : " << msg
               << std::endl;
+    if (sessionState->nextMsgIsScenario) {
+      sessionState->nextMsgIsScenario = false;
+      // TODO: parse the scenario here
+
+      simulator->start();
+      return;
+    }
     // lock the state to make sure it doesn't change during parsing
     try {
       std::lock_guard<std::shared_mutex> guard(*simState->mtx);
@@ -71,7 +81,7 @@ int main(int argc, char *argv[]) {
       std::string msgType = jsonMsg["type"].template get<std::string>();
 
       if (msgType == "scenario") {
-        // TODO: parse the scenario here
+        sessionState->nextMsgIsScenario = true;
       } else if (msgType == "info") {
         // TODO: we shouldn't be getting this message
         // FIX: maybe the examiner should be starting?
@@ -131,17 +141,18 @@ int main(int argc, char *argv[]) {
     }
   };
   serverState->writeCallback = [](auto sessionState, size_t len) {
-    std::cout << "Wrote message to: " << sessionState->uuid << " len: " << len
-              << std::endl;
+    // std::cout << "Wrote message to: " << sessionState->uuid << " len: " <<
+    // len
+    //           << std::endl;
   };
   websocketServer = std::make_shared<WebsocketServer>(serverState);
-  Simulator sim(simState, websocketServer);
+  simulator = std::make_unique<Simulator>(simState, websocketServer);
 
   websocketServer->run();
-  sim.start();
+  // simulator->start();
 
   websocketServer->wait();
-  sim.wait();
+  simulator->wait();
 
   return EXIT_SUCCESS;
 }

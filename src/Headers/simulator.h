@@ -20,6 +20,19 @@ class Simulator {
   std::chrono::steady_clock::time_point _lastTime;
 
   void _loop() {
+    {
+      std::lock_guard<std::shared_mutex> guard(*_state->mtx);
+      json base = R"({"type":"start","aircrafts":[]})"_json;
+
+      std::vector<data::PlaneData> aircrafts;
+      aircrafts.reserve(_state->planes.size());
+      for (const auto &plane : _state->planes) {
+        aircrafts.emplace_back(plane.getData());
+      }
+      base["aircrafts"] = aircrafts;
+      // std::cout << base.dump() << std ::endl;
+      _wsServer->broadcast(base.dump());
+    }
     while (_runLoop) {
       // calculating time delta
       auto now = std::chrono::steady_clock::now();
@@ -36,14 +49,15 @@ class Simulator {
         }
       }
 
-      // TODO: send updated planes' positionis
+      // sending the planes' positions
       std::vector<data::PlaneFlightData> flightData;
       flightData.reserve(_state->planes.size());
       for (const auto &plane : _state->planes) {
         flightData.emplace_back(plane.getFlightData());
       }
-      json j = flightData;
-      _wsServer->broadcast(j.dump());
+      json base = R"({"type":"positions","aircrafts":[]})"_json;
+      base["aircrafts"] = flightData;
+      _wsServer->broadcast(base.dump());
 
       auto n2 = std::chrono::steady_clock::now();
       std::this_thread::sleep_for(_state->updateInterval - (n2 - now));
