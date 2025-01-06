@@ -159,7 +159,7 @@ public:
     this->target.pos = pd.targetPos;
     // data::PlaneFlightData pd2;
   }
-  data::PlaneData getData() {
+  data::PlaneData getData() const {
     return data::PlaneData{this->info, this->vel,
                            xy2geo(this->pos)}; // coordinate conversion
   }
