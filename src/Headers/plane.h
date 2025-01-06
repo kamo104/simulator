@@ -49,8 +49,8 @@ inline void to_json(json &j, const PlaneData &p) {
       {"squawk", p.info.squawk},
       {"model", p.info.model},
       {"velocity",
-       {{"direction", fixAngle(p.vel.heading - PI / 2)}, // radian conversion
-        {"value", ms2kts(p.vel.value)}}},                // m/s to kts
+       {{"direction", p.vel.heading},
+        {"value", p.vel.value}}},
       {"position",
        {{"latitude", p.pos.lat()},
         {"longitude", p.pos.lon()},
@@ -162,15 +162,16 @@ public:
     // data::PlaneFlightData pd2;
   }
   data::PlaneData getData() const {
-    return data::PlaneData{this->info, this->vel,
+    return data::PlaneData{this->info, {ms2kts(this->vel.value), rad2hdg(this->vel.heading)},
                            xy2geo(this->pos)}; // coordinate conversion
   }
 
   void setFlightData(const data::PlaneFlightData &pd) {
     // TODO: maybe implement a better function of setting the data
-    this->pos = pd.pos;
-    this->vel = pd.vel;
-    this->target.pos = pd.targetPos;
+    this->pos = geo2xy(pd.pos);
+    this->vel.heading = hdg2rad(pd.vel.heading);
+    this->vel.value = kts2ms(pd.vel.value);
+    this->target.pos = geo2xy(pd.targetPos);
   }
   data::PlaneFlightData getFlightData() const {
     return data::PlaneFlightData{this->info.id, this->info.squawk, this->vel,
@@ -389,8 +390,6 @@ private:
                // to oba promienie
         double alpha = gamma - beta;
 
-        // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie,
-        // zalezy czy skrecamy w prawo, czy w lewo
         if (p.first == 1) {
           x3 = x1 + r * std::sin(alpha);
           y3 = y1 + r * std::cos(alpha);
@@ -421,8 +420,6 @@ private:
 
         double alpha = -std::atan2(tempy, tempx);
 
-        // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie,
-        // zalezy czy skrecamy w prawo, czy w lewo
         if (p.first == 1) {
           x3 = x1 - r * std::sin(-alpha);
           y3 = y1 - r * std::cos(-alpha);
