@@ -32,27 +32,28 @@ struct PlaneData {
   PlaneInfo info;
   Velocity vel;
   GeoPos<double> pos;
+  GeoPos<double> targetPos;
 };
 
 inline void to_json(json &j, const PlaneData &p) {
-  j = json{{{"id", p.info.id},
-            {"sim_id", p.info.sim_id},
-            {"isGrounded", p.info.isGrounded},
-            {"airline", p.info.airline},
-            {"flightNumber", p.info.flightNumber},
-            {"planeNumber", p.info.planeNumber},
-            {"callSign", p.info.callSign},
-            {"squawk", p.info.squawk},
-            {"model", p.info.model}},
-           {"velocity",
-            {
-                {"heading", p.vel.heading},
-                {"value", p.vel.value},
-            }},
+  j = json{{"id", p.info.id},
+           {"sim_id", p.info.sim_id},
+           {"isGrounded", p.info.isGrounded},
+           {"airline", p.info.airline},
+           {"flight_number", p.info.flightNumber},
+           {"plane_number", p.info.planeNumber},
+           {"callSign", p.info.callSign},
+           {"squawk", p.info.squawk},
+           {"model", p.info.model},
+           {"velocity", {{"direction", p.vel.heading}, {"value", p.vel.value}}},
            {"position",
             {{"latitude", p.pos.lat()},
              {"longitude", p.pos.lon()},
-             {"altitude", p.pos.alt()}}}};
+             {"altitude", p.pos.alt()}}},
+           {"target",
+            {{"latitude", p.targetPos.lat()},
+             {"longitude", p.targetPos.lon()},
+             {"altitude", p.targetPos.alt()}}}};
 }
 
 inline void from_json(const json &j, PlaneData &p) {
@@ -68,13 +69,18 @@ inline void from_json(const json &j, PlaneData &p) {
   info.at("model").get_to(p.info.model);
 
   const auto &vel = j.at("velocity");
-  vel.at("heading").get_to(p.vel.heading);
+  vel.at("direction").get_to(p.vel.heading);
   vel.at("value").get_to(p.vel.value);
 
   const auto &pos = j.at("position");
   pos.at("latitude").get_to(p.pos.lat());
   pos.at("longitude").get_to(p.pos.lon());
   pos.at("altitude").get_to(p.pos.alt());
+
+  const auto &tar = j.at("target");
+  pos.at("latitude").get_to(p.targetPos.lat());
+  pos.at("longitude").get_to(p.targetPos.lon());
+  pos.at("altitude").get_to(p.targetPos.alt());
 }
 
 struct PlaneFlightData {
@@ -91,14 +97,14 @@ inline void to_json(json &j, const PlaneFlightData &p) {
            {"squawk", p.squawk},
            {"velocity",
             {
-                {"heading", p.vel.heading},
+                {"direction", p.vel.heading},
                 {"value", p.vel.value},
             }},
            {"position",
             {{"latitude", p.pos.lat()},
              {"longitude", p.pos.lon()},
              {"altitude", p.pos.alt()}}},
-           {"targetPosition",
+           {"target",
             {{"latitude", p.targetPos.lat()},
              {"longitude", p.targetPos.lon()},
              {"altitude", p.targetPos.alt()}}}};
@@ -110,7 +116,7 @@ inline void from_json(const json &j, PlaneFlightData &p) {
   j.at("id").get_to(p.id);
 
   const auto &vel = j.at("velocity");
-  vel.at("heading").get_to(p.vel.heading);
+  vel.at("direction").get_to(p.vel.heading);
   vel.at("value").get_to(p.vel.value);
 
   const auto &pos = j.at("position");
@@ -118,7 +124,7 @@ inline void from_json(const json &j, PlaneFlightData &p) {
   pos.at("longitude").get_to(p.pos.lon());
   pos.at("altitude").get_to(p.pos.alt());
 
-  const auto &targetPos = j.at("targetPosition");
+  const auto &targetPos = j.at("target");
   targetPos.at("latitude").get_to(p.targetPos.lat());
   targetPos.at("longitude").get_to(p.targetPos.lon());
   targetPos.at("altitude").get_to(p.targetPos.alt());
@@ -146,8 +152,9 @@ public:
     this->info = pd.info;
     this->vel = pd.vel;
     this->pos = pd.pos;
+    this->targetPos = pd.targetPos;
   }
-  data::PlaneData getData() {
+  data::PlaneData getData() const {
     return data::PlaneData{this->info, this->vel, this->pos};
   }
 
@@ -181,11 +188,11 @@ public:
 
   void update(float timeDelta) {
     // Debug
-    std::cout << info.callSign << " target: " << targetPos
-              << " dist: " << distance(pos, targetPos) << std::endl;
-    std::cout << "Hdg: " << rad2dgr(vel.heading) << " Speed: " << vel.value
-              << std::endl;
-    std::cout << "Pos: " << pos << std::endl << std::endl;
+    // std::cerr << info.callSign << " target: " << targetPos
+    //           << " dist: " << distance(pos, targetPos) << std::endl;
+    // std::cerr << "Hdg: " << rad2dgr(vel.heading) << " Speed: " << vel.value
+    //           << std::endl;
+    // std::cerr << "Pos: " << pos << std::endl << std::endl;
     updateVelocity(timeDelta);
     updatePosition(timeDelta);
     updateFlightPlan();

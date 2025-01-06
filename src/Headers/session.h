@@ -88,7 +88,7 @@ public:
   }
   void on_accept(beast::error_code ec) {
     if (ec) {
-      return fail(ec, "accept");
+      return fail(ec, "session accept");
     }
     _state->acceptCallback();
     do_read();
@@ -119,25 +119,40 @@ public:
   }
 
   void on_read(beast::error_code ec, std::size_t bytesTransferred) {
-    if (ec == websocket::error::closed) {
+    if (ec == websocket::error::closed || ec == net::error::eof) {
+      fail(ec, "session read");
       _state->disconnectCallback();
       return;
     }
 
-    if (ec)
-      fail(ec, "read");
-    _ws.text(_ws.got_text());
+    if (ec) {
+      return fail(ec, "session read");
+    }
+
+    if (_state->nextMsgIsScenario == true) {
+      _ws.text(_ws.got_binary());
+    } else {
+      _ws.text(_ws.got_text());
+    }
 
     std::string msg(beast::buffers_to_string(_recvBuffer.cdata()));
     _recvBuffer.consume(bytesTransferred);
     _state->readCallback(msg);
 
     do_read();
+
+    static bool first = true;
+    if (first) {
+      first = false;
+    }
   }
 
   void on_write(beast::error_code ec, std::size_t bytesTransferred) {
-    if (ec)
-      return fail(ec, "write");
+    if (ec) {
+      fail(ec, "session write");
+      _state->disconnectCallback();
+      return;
+    }
 
     _state->writeCallback(bytesTransferred);
   }
