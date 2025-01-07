@@ -151,7 +151,7 @@ public:
   bool declaredEmergency = false;
   bool ignoreFlightPlan = false;
   FlightPlan flightPlan;
-  std::unique_ptr<const PlaneConfig> config;
+  const PlaneConfig* config;
 
   void setData(const data::PlaneData &pd) {
     // TODO: maybe implement a better function of setting the data
@@ -162,7 +162,8 @@ public:
     // data::PlaneFlightData pd2;
   }
   data::PlaneData getData() const {
-    return data::PlaneData{this->info, {ms2kts(this->vel.value), rad2hdg(this->vel.heading)},
+    return data::PlaneData{this->info, 
+                          {ms2kts(this->vel.value), -this->vel.heading},
                            xy2geo(this->pos)}; // coordinate conversion
   }
 
@@ -174,12 +175,13 @@ public:
     this->target.pos = geo2xy(pd.targetPos);
   }
   data::PlaneFlightData getFlightData() const {
-    return data::PlaneFlightData{this->info.id, this->info.squawk, this->vel,
-                                 this->pos};
+    return data::PlaneFlightData{this->info.id, this->info.squawk, 
+                                {ms2kts(this->vel.value), -this->vel.heading},
+                                 xy2geo(this->pos), xy2geo(this->target.pos) };
   }
 
   Plane(const data::PlaneData &data, const FlightPlan &flightplan,
-        std::unique_ptr<const PlaneConfig> configPointer) {
+      const PlaneConfig* configPointer) {
     this->info = data.info;
     this->vel = data.vel;
     this->vel.value = std::min(std::max(vel.value, configPointer->minSpeed),
@@ -189,7 +191,7 @@ public:
         std::min(std::max(pos.alt(), 0.0), configPointer->maxAltitude);
     this->flightPlan = flightplan;
 
-    this->config = std::move(configPointer);
+    this->config = configPointer;
     setClimbSpeed = config->deafultClimbingSpeed;
 
     updateFlightPlan(true);
@@ -212,12 +214,12 @@ public:
 
   void update(float timeDelta) {
     // Debug
-    std::cout << info.callSign << " target: " << target.pos
-              << " dist: " << distance(pos, target.pos) << std::endl;
-    std::cout << "Hdg: " << rad2hdg(vel.heading) << " Speed: " << vel.value
-              << std::endl;
-    std::cout << "Pos(GEO): " << xy2geo(pos) << std::endl;
-    std::cout << "Pos (XY): " << pos << std::endl << std::endl;
+    //std::cout << info.callSign << " target: " << target.pos
+    //          << " dist: " << distance(pos, target.pos) << std::endl;
+    //std::cout << "Hdg: " << rad2hdg(vel.heading) << " Speed: " << vel.value
+    //          << std::endl;
+    //std::cout << "Pos(GEO): " << xy2geo(pos) << std::endl;
+    //std::cout << "Pos (XY): " << pos << std::endl << std::endl;
     updateFlightPlan();
     updateVelocity(timeDelta);
     updatePosition(timeDelta);

@@ -6,11 +6,7 @@ const double PI = 3.1415;
 const double G = 9.81;
 
 inline double fixAngle(double angle) {
-    while (angle < 0)
-        angle += 2 * PI;
-    while (angle > 2 * PI)
-        angle -= 2 * PI;
-    return angle;
+    return fmod(fmod(angle, 2*PI) + 2*PI, 2*PI);
 }
 
 inline double dgr2rad(double degrees) { return degrees * (PI / 180.0); }
