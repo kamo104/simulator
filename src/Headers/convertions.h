@@ -25,8 +25,8 @@ template <typename T> int sgn(T val) { return (T(0) < val) - (val < T(0)); }
 
 inline double distance(GeoPos<double> posA, GeoPos<double> posB) {
   return std::sqrt(std::pow(posA.lat() - posB.lat(), 2) +
-                   std::pow(posA.lon() - posB.lon(), 2) +
-                   std::pow(posA.alt() - posB.alt(), 2));
+                   std::pow(posA.lon() - posB.lon(), 2) /*+
+                   std::pow(posA.alt() - posB.alt(), 2)*/);
 }
 
 inline double ms2kts(double value) { return value * 1.943844; }

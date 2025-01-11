@@ -34,7 +34,7 @@ struct PlaneData {
   PlaneInfo info;
   Velocity vel;
   GeoPos<double> pos;
-  GeoPos<double> targetPos;
+
 };
 
 inline void to_json(json &j, const PlaneData &p) {
@@ -54,11 +54,8 @@ inline void to_json(json &j, const PlaneData &p) {
       {"position",
        {{"latitude", p.pos.lat()},
         {"longitude", p.pos.lon()},
-        {"altitude", p.pos.alt()}}},
-      {"target",
-       {{"latitude", p.targetPos.lat()},
-        {"longitude", p.targetPos.lon()},
-        {"altitude", p.targetPos.alt()}}}};
+        {"altitude", p.pos.alt()}}}
+  };
 }
 
 inline void from_json(const json &j, PlaneData &p) {
@@ -81,11 +78,6 @@ inline void from_json(const json &j, PlaneData &p) {
   pos.at("latitude").get_to(p.pos.lat());
   pos.at("longitude").get_to(p.pos.lon());
   pos.at("altitude").get_to(p.pos.alt());
-
-  const auto &tar = j.at("target");
-  pos.at("latitude").get_to(p.targetPos.lat());
-  pos.at("longitude").get_to(p.targetPos.lon());
-  pos.at("altitude").get_to(p.targetPos.alt());
 }
 
 struct PlaneFlightData {
@@ -93,7 +85,7 @@ struct PlaneFlightData {
   std::string squawk;
   Velocity vel;
   GeoPos<double> pos;
-  GeoPos<double> targetPos;
+  std::vector<GeoPos<double>> targets;
 };
 
 // to_json function
@@ -109,10 +101,15 @@ inline void to_json(json &j, const PlaneFlightData &p) {
             {{"latitude", p.pos.lat()},
              {"longitude", p.pos.lon()},
              {"altitude", p.pos.alt()}}},
-           {"target",
-            {{"latitude", p.targetPos.lat()},
-             {"longitude", p.targetPos.lon()},
-             {"altitude", p.targetPos.alt()}}}};
+           {"targets", json::array()}};
+
+  for (const auto& target : p.targets) {
+      j["targets"].push_back({
+          {"latitude", target.lat()},
+          {"longitude", target.lon()},
+          {"altitude", target.alt()}
+          });
+  }
 }
 
 // from_json function
@@ -129,10 +126,13 @@ inline void from_json(const json &j, PlaneFlightData &p) {
   pos.at("longitude").get_to(p.pos.lon());
   pos.at("altitude").get_to(p.pos.alt());
 
-  const auto &targetPos = j.at("target");
-  targetPos.at("latitude").get_to(p.targetPos.lat());
-  targetPos.at("longitude").get_to(p.targetPos.lon());
-  targetPos.at("altitude").get_to(p.targetPos.alt());
+  for (const auto& target : j.at("target")) {
+      double lat, lon, alt;
+      target.at("latitude").get_to(lat);
+      target.at("longitude").get_to(lon);
+      target.at("altitude").get_to(alt);
+      p.targets.push_back({{ lat, lon, alt }});
+  }
 }
 } // namespace data
 
@@ -158,7 +158,6 @@ public:
     this->info = pd.info;
     this->vel = pd.vel;
     this->pos = pd.pos;
-    this->target.pos = pd.targetPos;
     // data::PlaneFlightData pd2;
   }
   data::PlaneData getData() const {
@@ -172,12 +171,20 @@ public:
     this->pos = geo2xy(pd.pos);
     this->vel.heading = hdg2rad(pd.vel.heading);
     this->vel.value = kts2ms(pd.vel.value);
-    this->target.pos = geo2xy(pd.targetPos);
+    this->target.pos = geo2xy(pd.targets.front());
   }
   data::PlaneFlightData getFlightData() const {
+    std::vector<GeoPos<double>> targets;
+
+    // this is a heavy implementation, shoud be moved to a seperate msg that is sent only on
+    // target updates
+    targets.reserve(flightPlan.route.size() + flightPlan.auxiliary.size() + 1);
+    targets.emplace_back(xy2geo(target.pos));
+    for (auto &seg : flightPlan.auxiliary) targets.emplace_back(xy2geo(seg.pos));
+    for (auto &seg : flightPlan.route) targets.emplace_back(xy2geo(seg.pos));
     return data::PlaneFlightData{this->info.id, this->info.squawk, 
                                 {ms2kts(this->vel.value), -this->vel.heading},
-                                 xy2geo(this->pos), xy2geo(this->target.pos) };
+                                 xy2geo(this->pos), targets };
   }
 
   Plane(const data::PlaneData &data, const FlightPlan &flightplan,
@@ -381,6 +388,7 @@ private:
       y1 = mcenter.lat();
       x2 = tcenter.lon();
       y2 = tcenter.lat();
+      GeoPos<double> premTg[10], postTg[10];
 
       if (p.first == p.second) {
         // po tej samej stronie, sytuacja A
@@ -422,18 +430,36 @@ private:
 
         double alpha = -std::atan2(tempy, tempx);
 
+        
         if (p.first == 1) {
-          x3 = x1 - r * std::sin(-alpha);
-          y3 = y1 - r * std::cos(-alpha);
+            // w prawo
+            double startangle = tVel.heading - PI / 2;
 
-          x4 = x2 - r * std::sin(PI - alpha);
-          y4 = y2 - r * std::cos(PI - alpha);
-        } else {
-          x3 = x1 + r * std::sin(PI - alpha);
-          y3 = y1 + r * std::cos(PI - alpha);
+            for (int i = 10; i > 0; i--) {
+                double a = alpha - startangle * (i / 10.);
+                premTg[10 - i] = { {y1 + r * std::cos(a), x1 + r * std::sin(a), tPos.alt()} };
+                postTg[10 - i] = { {y2 + r * std::cos(a), x2 + r * std::sin(a), tPos.alt()} };
+            }
+            x3 = x1 + r * std::sin(alpha);
+            y3 = y1 + r * std::cos(alpha);
 
-          x4 = x2 + r * std::sin(-alpha);
-          y4 = y2 + r * std::cos(-alpha);
+            x4 = x2 + r * std::sin(alpha);
+            y4 = y2 + r * std::cos(alpha);
+        }
+        else {
+            // w lewo
+            double startangle = tVel.heading + PI / 2;
+
+            for (int i = 10; i > 0; i--) {
+                double a = startangle - alpha * (i / 10.);
+                premTg[10 - i] = { {y1 - r * std::cos(a), x1 - r * std::sin(a), tPos.alt()} };
+                postTg[10 - i] = { {y2 - r * std::cos(a), x2 - r * std::sin(a), tPos.alt()} };
+            }
+            x3 = x1 - r * std::sin(alpha);
+            y3 = y1 - r * std::cos(alpha);
+
+            x4 = x2 - r * std::sin(alpha);
+            y4 = y2 - r * std::cos(alpha);
         }
       }
 
@@ -442,8 +468,18 @@ private:
 
       std::cout << "DEBUG - 1: " << mtangent << " 2: " << ttangent << std::endl;
 
-      this->target = FlightSegment{mtangent, tVel, false};
-      this->flightPlan.auxiliary.push_back({ttangent, tVel, false});
+     /* this->target = FlightSegment{premTg[0], tVel, false};
+      for (int i = 1; i < 10; i++) {
+          this->flightPlan.auxiliary.push_back({premTg[i], tVel, false});
+      }*/
+      this->target = { mtangent, tVel, false };
+      //this->flightPlan.auxiliary.push_back({ mtangent, tVel, false });
+      this->flightPlan.auxiliary.push_back({ ttangent, tVel, false });
+      /*for (int i = 0; i < 10; i++) {
+          this->flightPlan.auxiliary.push_back({ postTg[i], tVel, false });
+      }*/
+
+
       targetSegment.useHeading = false;
       this->flightPlan.auxiliary.push_back(targetSegment);
       this->vaildPathFound = true;
