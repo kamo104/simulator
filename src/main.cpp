@@ -32,8 +32,9 @@ int main(int argc, char *argv[]) {
                      {},
                      std::chrono::microseconds(16666)});
 
-  const PlaneConfig config =
-          PlaneConfig{60.5, 241.9, 12000, 25, 20, 1.1, 1.35, 70, 30, 1000};
+  std::shared_ptr<const PlaneConfig> configPtr =
+      std::make_shared<const PlaneConfig>(
+          PlaneConfig{60.5, 241.9, 12000, 25, 20, 1.1, 1.35, 70, 30, 1000});
 
   //FlightPlan plan;
   //plan.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.42, 16.82, 10000.0}}),
@@ -45,7 +46,7 @@ int main(int argc, char *argv[]) {
   //    Plane(data::PlaneData{ {0, 0, false, "LOT", "286",
   //        "SP-LVN", "LOT286", "2000", "Airbus A320"}, 
   //        Velocity{100, hdg2rad(0)}, {{52.4, 16.9, 1000}} }, 
-  //        plan, &config));
+  //        plan, configPtr));
 
   FlightPlan plan2;
   plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{53.5, 16, 10000.0}}),
@@ -56,7 +57,7 @@ int main(int argc, char *argv[]) {
       Plane(data::PlaneData{ {0, 0, false, "LOT", "287",
           "SP-XTZ", "LOT287", "2010", "Airbus A320"},
           Velocity{100, hdg2rad(0)}, {{53, 16, 1000}} },
-          plan2, &config));
+          plan2, configPtr));
   
   
   //simState->planes[0].generateLandingWaypoints(true);
@@ -111,38 +112,53 @@ int main(int argc, char *argv[]) {
         }
       } else if (msgType == "order") {
         // TODO: pass the order to the "real" planes and update the simulation
-      }
-      // else if (msgType == "plane-pick") {
-      //   // TODO: pick a plane used by the client
-      //   int pickedId = jsonMsg["id"].template get<int>();
-      //   { // check if the pilot already has a plane in use
-      //     auto it =
-      //         std::find_if(simState->planes.begin(), simState->planes.end(),
-      //                      [&sessionState](const Plane &p) {
-      //                        return p.uuid == sessionState->uuid;
-      //                      });
-      //     if (it != simState->planes.end()) {
-      //       websocketServer->send(
-      //           sessionState->uuid,
-      //           R"({"error":"This pilot already has a different plane."})");
-      //       return;
-      //     }
-      //   }
-      //   { // check for open planes
-      //     auto it2 = std::find_if(
-      //         simState->planes.begin(), simState->planes.end(),
-      //         [pickedId](const Plane &p) { return p.info.id == pickedId; });
-      //     if (it2 != simState->planes.end()) {
-      //       it2->uuid = sessionState->uuid;
-      //       websocketServer->send(sessionState->uuid, R"({"status":"OK"})");
-      //       return;
-      //     }
-      //     websocketServer->send(sessionState->uuid,
-      //                           R"({"error":"The plane with the selected id "
-      //                           "has already been picked."})");
-      //   }
-      // }
+        std::string orderType = jsonMsg["order_type"];
+        int id = jsonMsg["id"];
+        auto it =
+            std::find_if(simState->planes.begin(), simState->planes.end(),
+                         [id](const Plane &p1) { return p1.info.id == id; });
+        if (it == simState->planes.end()) {
+          std::cerr << "Plane from the order not found! id: " << id
+                    << std::endl;
+        }
+        std::unordered_map<std::string, const std::function<void()>> fnMap = {
+            {"altitude",
+             [it, &jsonMsg]() {
+               it->setAltitude(jsonMsg["data"].template get<float>());
+             }},
+            {"headtopoint",
+             [it, &jsonMsg]() {
+               double lat = jsonMsg["data"]["lat"];
+               double lon = jsonMsg["data"]["long"];
+               it->setHeadpoint(Vec<double, 2>{lat, lon});
+             }},
+            {"heading",
+             [it, &jsonMsg]() {
+               it->setHeading(jsonMsg["data"]["value"].template get<float>());
+             }},
+            {"velocity",
+             [it, &jsonMsg]() {
+               it->setVelocity(jsonMsg["data"]["value"].template get<float>());
+             }},
+            {"squawk",
+             [it, &jsonMsg]() {
+               it->setSquawk(
+                   jsonMsg["data"]["value"].template get<std::string>());
+             }},
+            {"follow_flight_plan",
+             [it, &jsonMsg]() { it->followFlightPlan(); }},
+            {"enter_holding", [it, &jsonMsg]() { it->enterHolding(); }},
+            {"landing", [it, &jsonMsg]() { it->landing(); }},
+            {"touch_and_go", [it, &jsonMsg]() { it->touchAndGo(); }},
+            {"enter_airport_loop",
+             [it, &jsonMsg]() { it->enterAirportLoop(); }}};
 
+        if (fnMap.find(orderType) != fnMap.end()) {
+          fnMap[orderType]();
+        } else {
+          std::cerr << "Unknown order type: " << orderType << std::endl;
+        }
+      }
     } catch (const json::parse_error &er) {
       std::cerr << "Couldn't parse the json message" << std::endl;
       websocketServer->send(sessionState->uuid,
@@ -151,11 +167,7 @@ int main(int argc, char *argv[]) {
       std::cerr << "Wrong type used during parsing" << std::endl;
     }
   };
-  serverState->writeCallback = [](auto sessionState, size_t len) {
-    // std::cout << "Wrote message to: " << sessionState->uuid << " len: " <<
-    // len
-    //           << std::endl;
-  };
+  serverState->writeCallback = [](auto sessionState, size_t len) {};
   websocketServer = std::make_shared<WebsocketServer>(serverState);
   simulator = std::make_unique<Simulator>(simState, websocketServer);
 
