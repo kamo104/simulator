@@ -394,3 +394,16 @@ void Plane::generateLandingWaypoints(bool orientation, double slopeAngle,
   choice.vel.value = config->landingSpeed;
   flightPlan.auxiliary.push_back(choice);
 }
+
+// order handling
+void Plane::setAltitude(float altitude) {}
+void Plane::setHeadpoint(Vec<double, 2> point) {}
+void Plane::setHeading(float heading) {}
+void Plane::setVelocity(float vel) {}
+void Plane::setSquawk(const std::string &sq) { this->info.squawk = sq; }
+void Plane::followFlightPlan() {}
+void Plane::enterHolding() {}
+void Plane::landing() {}
+void Plane::touchAndGo() {}
+void Plane::enterAirportLoop() {}
+// order handling

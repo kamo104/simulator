@@ -83,6 +83,19 @@ public:
   void generateLandingWaypoints(bool orientation, double slopeAngle = 3,
                                 double distance = 5000);
 
+  // order handling
+  void setAltitude(float altitude);
+  void setHeadpoint(Vec<double, 2> point);
+  void setHeading(float heading);
+  void setVelocity(float vel);
+  void setSquawk(const std::string &sq);
+  void followFlightPlan();
+  void enterHolding();
+  void landing();
+  void touchAndGo();
+  void enterAirportLoop();
+  // order handling
+
 private:
   void updateVelocity(float timeDelta);
   void updatePosition(float timeDelta);
