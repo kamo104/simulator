@@ -3,27 +3,24 @@
 namespace data {
 
 void to_json(json &j, const PlaneData &p) {
-  j = json{
-      {"id", p.info.id},
-      {"sim_id", p.info.sim_id},
-      {"isGrounded", p.info.isGrounded},
-      {"airline", p.info.airline},
-      {"flight_number", p.info.flightNumber},
-      {"plane_number", p.info.planeNumber},
-      {"callSign", p.info.callSign},
-      {"squawk", p.info.squawk},
-      {"model", p.info.model},
-      {"velocity",
-       {{"direction", fixAngle(p.vel.heading - PI / 2)}, // radian conversion
-        {"value", ms2kts(p.vel.value)}}},                // m/s to kts
-      {"position",
-       {{"latitude", p.pos.lat()},
-        {"longitude", p.pos.lon()},
-        {"altitude", p.pos.alt()}}},
-      {"target",
-       {{"latitude", p.targetPos.lat()},
-        {"longitude", p.targetPos.lon()},
-        {"altitude", p.targetPos.alt()}}}};
+  j = json{{"id", p.info.id},
+           {"sim_id", p.info.sim_id},
+           {"isGrounded", p.info.isGrounded},
+           {"airline", p.info.airline},
+           {"flight_number", p.info.flightNumber},
+           {"plane_number", p.info.planeNumber},
+           {"callSign", p.info.callSign},
+           {"squawk", p.info.squawk},
+           {"model", p.info.model},
+           {"velocity", {{"direction", p.vel.heading}, {"value", p.vel.value}}},
+           {"position",
+            {{"latitude", p.pos.lat()},
+             {"longitude", p.pos.lon()},
+             {"altitude", p.pos.alt()}}},
+           {"target",
+            {{"latitude", p.targetPos.lat()},
+             {"longitude", p.targetPos.lon()},
+             {"altitude", p.targetPos.alt()}}}};
 }
 
 void from_json(const json &j, PlaneData &p) {
@@ -102,23 +99,28 @@ void Plane::setData(const data::PlaneData &pd) {
   // data::PlaneFlightData pd2;
 }
 data::PlaneData Plane::getData() const {
-  return data::PlaneData{this->info, this->vel,
+  return data::PlaneData{this->info,
+                         {ms2kts(this->vel.value), -this->vel.heading},
                          xy2geo(this->pos)}; // coordinate conversion
 }
 
 void Plane::setFlightData(const data::PlaneFlightData &pd) {
   // TODO: maybe implement a better function of setting the data
-  this->pos = pd.pos;
-  this->vel = pd.vel;
-  this->target.pos = pd.targetPos;
+  this->pos = geo2xy(pd.pos);
+  this->vel.heading = hdg2rad(pd.vel.heading);
+  this->vel.value = kts2ms(pd.vel.value);
+  this->target.pos = geo2xy(pd.targetPos);
 }
 data::PlaneFlightData Plane::getFlightData() const {
-  return data::PlaneFlightData{this->info.id, this->info.squawk, this->vel,
-                               this->pos};
+  return data::PlaneFlightData{this->info.id,
+                               this->info.squawk,
+                               {ms2kts(this->vel.value), -this->vel.heading},
+                               xy2geo(this->pos),
+                               xy2geo(this->target.pos)};
 }
 
 Plane::Plane(const data::PlaneData &data, const FlightPlan &flightplan,
-             std::unique_ptr<const PlaneConfig> configPointer) {
+             std::shared_ptr<const PlaneConfig> configPointer) {
   this->info = data.info;
   this->vel = data.vel;
   this->vel.value = std::min(std::max(vel.value, configPointer->minSpeed),
@@ -128,7 +130,7 @@ Plane::Plane(const data::PlaneData &data, const FlightPlan &flightplan,
       std::min(std::max(pos.alt(), 0.0), configPointer->maxAltitude);
   this->flightPlan = flightplan;
 
-  this->config = std::move(configPointer);
+  this->config = configPointer;
   setClimbSpeed = config->deafultClimbingSpeed;
 
   updateFlightPlan(true);
@@ -136,12 +138,12 @@ Plane::Plane(const data::PlaneData &data, const FlightPlan &flightplan,
 
 void Plane::update(float timeDelta) {
   // Debug
-  std::cout << info.callSign << " target: " << target.pos
-            << " dist: " << distance(pos, target.pos) << std::endl;
-  std::cout << "Hdg: " << rad2dgr(vel.heading) << " Speed: " << vel.value
-            << std::endl;
-  std::cout << "Pos(GEO): " << xy2geo(pos) << std::endl;
-  std::cout << "Pos (XY): " << pos << std::endl << std::endl;
+  // std::cout << info.callSign << " target: " << target.pos
+  //          << " dist: " << distance(pos, target.pos) << std::endl;
+  // std::cout << "Hdg: " << rad2hdg(vel.heading) << " Speed: " << vel.value
+  //          << std::endl;
+  // std::cout << "Pos(GEO): " << xy2geo(pos) << std::endl;
+  // std::cout << "Pos (XY): " << pos << std::endl << std::endl;
   updateFlightPlan();
   updateVelocity(timeDelta);
   updatePosition(timeDelta);
@@ -208,7 +210,7 @@ double Plane::findHeadingDelta(GeoPos<double> pos, GeoPos<double> targetPos) {
   // std::cout << "Target Hdg: " << rad2dgr(targetHeading) << std::endl;
 
   // Check if turn is possible
-  if (ignoreFlightPlan || checkMinRadius())
+  if (checkMinRadius())
     return 0;
 
   // Check if advanced pathfinding requires repositioning
@@ -312,8 +314,6 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
                        // gdzie R i r to oba promienie
       double alpha = gamma - beta;
 
-      // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie,
-      // zalezy czy skrecamy w prawo, czy w lewo
       if (p.first == 1) {
         x3 = x1 + r * std::sin(alpha);
         y3 = y1 + r * std::cos(alpha);
@@ -344,8 +344,6 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
 
       double alpha = -std::atan2(tempy, tempx);
 
-      // TODO: nie zawsze powinno byc dodawanie, istnieja 2 takie linie,
-      // zalezy czy skrecamy w prawo, czy w lewo
       if (p.first == 1) {
         x3 = x1 - r * std::sin(-alpha);
         y3 = y1 - r * std::cos(-alpha);
@@ -377,4 +375,22 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
     this->vaildPathFound = false;
     this->target = targetSegment;
   }
+}
+
+void Plane::generateLandingWaypoints(bool orientation, double slopeAngle,
+                                     double distance) {
+  FlightSegment landingA = {
+      {{52.423969, 16.81117, 0}}, {0.0, hdg2rad(100)}, true};
+  FlightSegment landingB = {
+      {{52.418973, 16.837063, 0}}, {0.0, hdg2rad(280)}, true};
+
+  FlightSegment choice = (orientation) ? landingB : landingA;
+  double dir = choice.useHeading - PI;
+  double alt = distance * std::tan(dgr2rad(slopeAngle));
+
+  GeoPos<double> waypoint = {{choice.pos.lat() + sin(dir) * distance,
+                              choice.pos.lon() + cos(dir) * distance, alt}};
+  generateHelperWaypoints(FlightSegment{waypoint, config->landingSpeed, false});
+  choice.vel.value = config->landingSpeed;
+  flightPlan.auxiliary.push_back(choice);
 }

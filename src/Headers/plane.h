@@ -9,6 +9,8 @@
 #include <atomic>
 #include <cmath>
 
+enum class FlightState { AUTO, HDG, AUX, GROUNDED };
+
 struct PlaneInfo {
   int id;
   int sim_id;
@@ -36,7 +38,6 @@ struct PlaneData {
 };
 
 void to_json(json &j, const PlaneData &p);
-
 void from_json(const json &j, PlaneData &p);
 
 struct PlaneFlightData {
@@ -47,10 +48,7 @@ struct PlaneFlightData {
   GeoPos<double> targetPos;
 };
 
-// to_json function
 void to_json(json &j, const PlaneFlightData &p);
-
-// from_json function
 void from_json(const json &j, PlaneFlightData &p);
 } // namespace data
 
@@ -69,7 +67,7 @@ public:
   bool declaredEmergency = false;
   bool ignoreFlightPlan = false;
   FlightPlan flightPlan;
-  std::unique_ptr<const PlaneConfig> config;
+  std::shared_ptr<const PlaneConfig> config;
 
   void setData(const data::PlaneData &pd);
   data::PlaneData getData() const;
@@ -78,14 +76,17 @@ public:
   data::PlaneFlightData getFlightData() const;
 
   Plane(const data::PlaneData &data, const FlightPlan &flightplan,
-        std::unique_ptr<const PlaneConfig> configPointer);
+        std::shared_ptr<const PlaneConfig> configPointer);
 
   void update(float timeDelta);
-  void updateVelocity(float timeDelta);
-  void updatePosition(float timeDelta);
-  void updateFlightPlan(bool force = false, double margin = 50);
+
+  void generateLandingWaypoints(bool orientation, double slopeAngle = 3,
+                                double distance = 5000);
 
 private:
+  void updateVelocity(float timeDelta);
+  void updatePosition(float timeDelta);
+  void updateFlightPlan(bool force = false, double margin = 10);
   double getTurnFactor();
   double findHeadingDelta(GeoPos<double> pos, GeoPos<double> targetPos);
   bool checkMinRadius();

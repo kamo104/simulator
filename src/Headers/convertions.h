@@ -5,9 +5,13 @@
 const double PI = 3.1415;
 const double G = 9.81;
 
+double fixAngle(double angle);
+
 double dgr2rad(double degrees);
+double hdg2rad(double degrees);
 
 double rad2dgr(double radian);
+double rad2hdg(double degrees);
 
 double meter2lat(double distance);
 
@@ -16,8 +20,6 @@ double meter2long(double distance, double latitude);
 template <typename T> int sgn(T val) { return (T(0) < val) - (val < T(0)); }
 
 double distance(GeoPos<double> posA, GeoPos<double> posB);
-
-double fixAngle(double angle);
 
 double ms2kts(double value);
 double kts2ms(double value);

@@ -1,8 +1,10 @@
 #include "convertions.h"
 
 double dgr2rad(double degrees) { return degrees * (PI / 180.0); }
+double hdg2rad(double degrees) { return dgr2rad(fixAngle(450 - degrees)); }
 
 double rad2dgr(double radian) { return radian * (180.0 / PI); }
+double rad2hdg(double degrees) { return fmod(450 - rad2dgr(degrees), 360.0); }
 
 double meter2lat(double distance) { return distance * 0.0000089831117; }
 
@@ -17,11 +19,7 @@ double distance(GeoPos<double> posA, GeoPos<double> posB) {
 }
 
 double fixAngle(double angle) {
-  while (angle < 0)
-    angle += 2 * PI;
-  while (angle > 2 * PI)
-    angle -= 2 * PI;
-  return angle;
+  return fmod(fmod(angle, 2 * PI) + 2 * PI, 2 * PI);
 }
 
 double ms2kts(double value) { return value * 1.943844; }
