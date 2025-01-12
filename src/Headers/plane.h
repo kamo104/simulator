@@ -34,27 +34,22 @@ struct PlaneData {
   PlaneInfo info;
   Velocity vel;
   GeoPos<double> pos;
-
 };
 
 void to_json(json &j, const PlaneData &p);
 void from_json(const json &j, PlaneData &p);
 
-  pos.at("latitude").get_to(p.targetPos.lat());
-  pos.at("longitude").get_to(p.targetPos.lon());
-  pos.at("altitude").get_to(p.targetPos.alt());
-}
 
 struct PlaneFlightData {
   int id;
   std::string squawk;
-void to_json(json &j, const PlaneFlightData &p);
-void from_json(const json &j, PlaneFlightData &p);
-  const auto &targetPos = j.at("target");
-  targetPos.at("latitude").get_to(p.targetPos.lat());
-  targetPos.at("longitude").get_to(p.targetPos.lon());
-  targetPos.at("altitude").get_to(p.targetPos.alt());
-}
+  Velocity vel;
+  GeoPos<double> pos;
+  std::vector<GeoPos<double>> targets;
+};
+
+void to_json(json& j, const PlaneFlightData& p);
+void from_json(const json& j, PlaneFlightData& p);
 } // namespace data
 
 class Plane {

@@ -3,24 +3,21 @@
 namespace data {
 
 void to_json(json &j, const PlaneData &p) {
-  j = json{{"id", p.info.id},
-           {"sim_id", p.info.sim_id},
-           {"isGrounded", p.info.isGrounded},
-           {"airline", p.info.airline},
-           {"flight_number", p.info.flightNumber},
-           {"plane_number", p.info.planeNumber},
-           {"callSign", p.info.callSign},
-           {"squawk", p.info.squawk},
-           {"model", p.info.model},
-           {"velocity", {{"direction", p.vel.heading}, {"value", p.vel.value}}},
-           {"position",
-            {{"latitude", p.pos.lat()},
-             {"longitude", p.pos.lon()},
-             {"altitude", p.pos.alt()}}},
-           {"target",
-            {{"latitude", p.targetPos.lat()},
-             {"longitude", p.targetPos.lon()},
-             {"altitude", p.targetPos.alt()}}}};
+    j = json{ {"id", p.info.id},
+             {"sim_id", p.info.sim_id},
+             {"isGrounded", p.info.isGrounded},
+             {"airline", p.info.airline},
+             {"flight_number", p.info.flightNumber},
+             {"plane_number", p.info.planeNumber},
+             {"callSign", p.info.callSign},
+             {"squawk", p.info.squawk},
+             {"model", p.info.model},
+             {"velocity", {{"direction", p.vel.heading}, {"value", p.vel.value}}},
+             {"position",
+              {{"latitude", p.pos.lat()},
+               {"longitude", p.pos.lon()},
+               {"altitude", p.pos.alt()}}}
+    };
 }
 
 void from_json(const json &j, PlaneData &p) {
@@ -43,50 +40,53 @@ void from_json(const json &j, PlaneData &p) {
   pos.at("latitude").get_to(p.pos.lat());
   pos.at("longitude").get_to(p.pos.lon());
   pos.at("altitude").get_to(p.pos.alt());
-
-  const auto &tar = j.at("target");
-  pos.at("latitude").get_to(p.targetPos.lat());
-  pos.at("longitude").get_to(p.targetPos.lon());
-  pos.at("altitude").get_to(p.targetPos.alt());
 }
 
 // to_json function
-void to_json(json &j, const PlaneFlightData &p) {
-  j = json{{"id", p.id},
-           {"squawk", p.squawk},
-           {"velocity",
-            {
-                {"direction", p.vel.heading},
-                {"value", p.vel.value},
-            }},
-           {"position",
-            {{"latitude", p.pos.lat()},
-             {"longitude", p.pos.lon()},
-             {"altitude", p.pos.alt()}}},
-           {"target",
-            {{"latitude", p.targetPos.lat()},
-             {"longitude", p.targetPos.lon()},
-             {"altitude", p.targetPos.alt()}}}};
+void to_json(json& j, const PlaneFlightData& p) {
+    j = json{ {"id", p.id},
+             {"squawk", p.squawk},
+             {"velocity",
+              {
+                  {"direction", p.vel.heading},
+                  {"value", p.vel.value},
+              }},
+             {"position",
+              {{"latitude", p.pos.lat()},
+               {"longitude", p.pos.lon()},
+               {"altitude", p.pos.alt()}}},
+             {"targets", json::array()} };
+
+    for (const auto& target : p.targets) {
+        j["targets"].push_back({
+            {"latitude", target.lat()},
+            {"longitude", target.lon()},
+            {"altitude", target.alt()}
+        });
+    }
 }
 
 // from_json function
-void from_json(const json &j, PlaneFlightData &p) {
-  j.at("squawk").get_to(p.squawk);
-  j.at("id").get_to(p.id);
+inline void from_json(const json& j, PlaneFlightData& p) {
+    j.at("squawk").get_to(p.squawk);
+    j.at("id").get_to(p.id);
 
-  const auto &vel = j.at("velocity");
-  vel.at("direction").get_to(p.vel.heading);
-  vel.at("value").get_to(p.vel.value);
+    const auto& vel = j.at("velocity");
+    vel.at("direction").get_to(p.vel.heading);
+    vel.at("value").get_to(p.vel.value);
 
-  const auto &pos = j.at("position");
-  pos.at("latitude").get_to(p.pos.lat());
-  pos.at("longitude").get_to(p.pos.lon());
-  pos.at("altitude").get_to(p.pos.alt());
+    const auto& pos = j.at("position");
+    pos.at("latitude").get_to(p.pos.lat());
+    pos.at("longitude").get_to(p.pos.lon());
+    pos.at("altitude").get_to(p.pos.alt());
 
-  const auto &targetPos = j.at("target");
-  targetPos.at("latitude").get_to(p.targetPos.lat());
-  targetPos.at("longitude").get_to(p.targetPos.lon());
-  targetPos.at("altitude").get_to(p.targetPos.alt());
+    for (const auto& target : j.at("targets")) {
+        double lat, lon, alt;
+        target.at("latitude").get_to(lat);
+        target.at("longitude").get_to(lon);
+        target.at("altitude").get_to(alt);
+        p.targets.push_back({ { lat, lon, alt } });
+    }
 }
 } // namespace data
 
@@ -95,7 +95,6 @@ void Plane::setData(const data::PlaneData &pd) {
   this->info = pd.info;
   this->vel = pd.vel;
   this->pos = pd.pos;
-  this->target.pos = pd.targetPos;
   // data::PlaneFlightData pd2;
 }
 data::PlaneData Plane::getData() const {
@@ -109,15 +108,22 @@ void Plane::setFlightData(const data::PlaneFlightData &pd) {
   this->pos = geo2xy(pd.pos);
   this->vel.heading = hdg2rad(pd.vel.heading);
   this->vel.value = kts2ms(pd.vel.value);
-  this->target.pos = geo2xy(pd.targetPos);
+  this->target.pos = geo2xy(pd.targets.front());
 }
 data::PlaneFlightData Plane::getFlightData() const {
-  return data::PlaneFlightData{this->info.id,
-                               this->info.squawk,
-                               {ms2kts(this->vel.value), -this->vel.heading},
-                               xy2geo(this->pos),
-                               xy2geo(this->target.pos)};
+    std::vector<GeoPos<double>> targets;
+
+    // this is a heavy implementation, shoud be moved to a seperate msg that is sent only on
+    // target updates
+    targets.reserve(flightPlan.route.size() + flightPlan.auxiliary.size() + 1);
+    targets.emplace_back(xy2geo(target.pos));
+    for (auto& seg : flightPlan.auxiliary) targets.emplace_back(xy2geo(seg.pos));
+    for (auto& seg : flightPlan.route) targets.emplace_back(xy2geo(seg.pos));
+    return data::PlaneFlightData{ this->info.id, this->info.squawk,
+                                {ms2kts(this->vel.value), -this->vel.heading},
+                                 xy2geo(this->pos), targets };
 }
+
 
 Plane::Plane(const data::PlaneData &data, const FlightPlan &flightplan,
              std::shared_ptr<const PlaneConfig> configPointer) {
