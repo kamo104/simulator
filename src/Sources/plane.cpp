@@ -115,10 +115,15 @@ data::PlaneFlightData Plane::getFlightData() const {
 
     // this is a heavy implementation, shoud be moved to a seperate msg that is sent only on
     // target updates
+    
     targets.reserve(_flightPlan.route.size() + _flightPlan.auxiliary.size() + 1);
-    targets.emplace_back(xy2geo(_target.pos));
-    for (auto& seg : _flightPlan.auxiliary) targets.emplace_back(xy2geo(seg.pos));
-    for (auto& seg : _flightPlan.route) targets.emplace_back(xy2geo(seg.pos));
+    if (_mode != MODE::HDG) targets.emplace_back(xy2geo(_target.pos));
+    if (_mode != MODE::HDG) {
+      for (auto& seg : _flightPlan.auxiliary) targets.emplace_back(xy2geo(seg.pos));
+    }
+    if (_mode == MODE::AUTO) {
+      for (auto& seg : _flightPlan.route) targets.emplace_back(xy2geo(seg.pos));
+    }
     return data::PlaneFlightData{ this->_info.id, this->_info.squawk,
                                 {ms2kts(this->_vel.value), -this->_vel.heading},
                                  xy2geo(this->_pos), targets };
@@ -136,10 +141,11 @@ Plane::Plane(const data::PlaneData &data, const FlightPlan &flightplan,
       std::min(std::max(_pos.alt(), 0.0), configPointer->maxAltitude);
   this->_flightPlan = flightplan;
   this->_mode = MODE::AUTO;
-  this->_auxParam.altMode = ALT_MODE::AUTO;
 
   this->config = configPointer;
   setClimbSpeed = config->deafultClimbingSpeed;
+
+  this->_auxParam.altMode = ALT_MODE::AUTO;
 
   updateFlightPlan(true);
 }
@@ -242,6 +248,7 @@ void Plane::setModeAux() {
 }
 
 void Plane::setModeAuto() {
+  _flightPlan.auxiliary.clear();
   _mode = MODE::AUTO;
 }
 
@@ -434,17 +441,17 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
 void Plane::generateLandingWaypoints(bool orientation, double slopeAngle,
                                      double distance) {
   FlightSegment landingA = {
-      {{52.423969, 16.81117, 0}}, {0.0, hdg2rad(100)}, true};
+      {{52.423969, 16.81117,  0}}, {0.0, hdg2rad(100) - MAGNETIC_NORTH_DIFF}, false };
   FlightSegment landingB = {
-      {{52.418973, 16.837063, 0}}, {0.0, hdg2rad(280)}, true};
+      {{52.418973, 16.837063, 0}}, {0.0, hdg2rad(280) - MAGNETIC_NORTH_DIFF}, false };
 
   FlightSegment choice = (orientation) ? landingB : landingA;
-  double dir = choice.useHeading - PI;
+  double dir = choice.vel.heading - PI;
   double alt = distance * std::tan(dgr2rad(slopeAngle));
 
   GeoPos<double> waypoint = {{choice.pos.lat() + sin(dir) * distance,
                               choice.pos.lon() + cos(dir) * distance, alt}};
-  generateHelperWaypoints(FlightSegment{waypoint, config->landingSpeed, false});
+  generateHelperWaypoints(FlightSegment{ waypoint, {config->landingSpeed, choice.vel.heading}, false });
   choice.vel.value = config->landingSpeed;
   _flightPlan.auxiliary.push_back(choice);
 }
@@ -495,11 +502,18 @@ void Plane::setVelocity(float vel) {
 void Plane::setSquawk(const std::string &sq) { this->_info.squawk = sq; }
 
 void Plane::followFlightPlan() {
+  _flightPlan.auxiliary.clear();
   setModeAuto();
 }
 
 void Plane::enterHolding() {}
-void Plane::landing() {}
-void Plane::touchAndGo() {}
+void Plane::landing() {
+  setModeAux();
+  generateLandingWaypoints(true);
+}
+void Plane::touchAndGo() {
+  setModeAux();
+  generateLandingWaypoints(false);
+}
 void Plane::enterAirportLoop() {}
 // order handling
