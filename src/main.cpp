@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
 
   std::shared_ptr<const PlaneConfig> configPtr =
       std::make_shared<const PlaneConfig>(
-          PlaneConfig{60.5, 241.9, 12000, 25, 20, 1.1, 1.35, 70, 30, 1000});
+          PlaneConfig{60.5, 241.9, 12000, 25, 20, 1.35, 2.56, 70, 30, 1000});
 
   //FlightPlan plan;
   //plan.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.42, 16.82, 10000.0}}),
@@ -49,14 +49,14 @@ int main(int argc, char *argv[]) {
   //        plan, configPtr));
 
   FlightPlan plan2;
-  plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{53.5, 16, 10000.0}}),
-                                    Velocity{300, hdg2rad(0)}, false });
-  plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{54, 16, 10000.0}}),
-                                     Velocity{240, hdg2rad(0)}, false });
+  plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.5, 10000.0}}),
+                                    Velocity{100, hdg2rad(90)}, true });
+  plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.7, 10000.0}}),
+                                     Velocity{120, hdg2rad(0)}, false });
   simState->planes.push_back(
       Plane(data::PlaneData{ {0, 0, false, "LOT", "287",
           "SP-XTZ", "LOT287", "2010", "Airbus A320"},
-          Velocity{100, hdg2rad(0)}, {{53, 16, 1000}} },
+          Velocity{100, hdg2rad(0)}, {{52.4, 16.4, 1000}} },
           plan2, configPtr));
   
   
@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
         for (Plane &plane : simState->planes) {
           auto it = std::find_if(planeData.begin(), planeData.end(),
                                  [&plane](const data::PlaneData &p) {
-                                   return p.info.id == plane.info.id;
+                                   return p.info.id == plane._info.id;
                                  });
           if (it != planeData.end()) {
             plane.setData(*it);
@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
         int id = jsonMsg["id"];
         auto it =
             std::find_if(simState->planes.begin(), simState->planes.end(),
-                         [id](const Plane &p1) { return p1.info.id == id; });
+                         [id](const Plane &p1) { return p1._info.id == id; });
         if (it == simState->planes.end()) {
           std::cerr << "Plane from the order not found! id: " << id
                     << std::endl;
@@ -124,13 +124,13 @@ int main(int argc, char *argv[]) {
         std::unordered_map<std::string, const std::function<void()>> fnMap = {
             {"altitude",
              [it, &jsonMsg]() {
-               it->setAltitude(jsonMsg["data"].template get<float>());
+               it->setAltitude(jsonMsg["data"]["value"].template get<float>());
              }},
             {"headtopoint",
              [it, &jsonMsg]() {
                double lat = jsonMsg["data"]["lat"];
                double lon = jsonMsg["data"]["long"];
-               it->setHeadpoint(Vec<double, 2>{lat, lon});
+               it->setHeadpoint(GeoPos<double>{{lat, lon, -1}});
              }},
             {"heading",
              [it, &jsonMsg]() {

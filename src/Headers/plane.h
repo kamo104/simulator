@@ -8,8 +8,9 @@
 #include "velocity.h"
 #include <atomic>
 #include <cmath>
+#include <controlParam.h>
 
-enum class FlightState { AUTO, HDG, AUX, GROUNDED };
+enum class MODE { AUTO, HDG, AUX, GROUNDED };
 
 struct PlaneInfo {
   int id;
@@ -24,10 +25,10 @@ struct PlaneInfo {
 };
 
 // TO DO:
-//  Advanced turning/pathfinding
+//  fix advanced turning/pathfinding
 //  landing, takoff, airport circle
 //  ground behavior
-//  order processing
+//  finish order processing
 
 namespace data {
 struct PlaneData {
@@ -57,16 +58,19 @@ class Plane {
 
 public:
   std::string uuid{""};
-  PlaneInfo info;
-  Velocity vel;
-  GeoPos<double> pos;
+  PlaneInfo _info;
+  Velocity _vel;
+  GeoPos<double> _pos;
 
-  FlightSegment target;
+  MODE _mode;
+  FlightSegment _target;
   double setClimbSpeed;
 
-  bool declaredEmergency = false;
-  bool ignoreFlightPlan = false;
-  FlightPlan flightPlan;
+  controlParam _auxParam;
+  bool _declaredEmergency = false;
+
+
+  FlightPlan _flightPlan;
   std::shared_ptr<const PlaneConfig> config;
 
   void setData(const data::PlaneData &pd);
@@ -85,7 +89,7 @@ public:
 
   // order handling
   void setAltitude(float altitude);
-  void setHeadpoint(Vec<double, 2> point);
+  void setHeadpoint(GeoPos<double> point);
   void setHeading(float heading);
   void setVelocity(float vel);
   void setSquawk(const std::string &sq);
@@ -102,6 +106,13 @@ private:
   void updateFlightPlan(bool force = false, double margin = 10);
   double getTurnFactor();
   double findHeadingDelta(GeoPos<double> pos, GeoPos<double> targetPos);
+  double getTurnRadius();
   bool checkMinRadius();
   void generateHelperWaypoints(FlightSegment targetSegment);
+  void setAuxParam();
+
+  void addWaypoint(FlightSegment segment, bool toFront = false);
+  void setModeHdg();
+  void setModeAux();
+  void setModeAuto();
 };

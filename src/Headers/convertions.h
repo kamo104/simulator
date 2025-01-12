@@ -13,6 +13,9 @@ double hdg2rad(double degrees);
 double rad2dgr(double radian);
 double rad2hdg(double degrees);
 
+double meter2ft(double alt);
+double ft2meter(double alt);
+
 double meter2lat(double distance);
 
 double meter2long(double distance, double latitude);

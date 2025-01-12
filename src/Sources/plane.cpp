@@ -92,49 +92,51 @@ inline void from_json(const json& j, PlaneFlightData& p) {
 
 void Plane::setData(const data::PlaneData &pd) {
   // TODO: maybe implement a better function of setting the data
-  this->info = pd.info;
-  this->vel = pd.vel;
-  this->pos = pd.pos;
+  this->_info = pd.info;
+  this->_vel = pd.vel;
+  this->_pos = pd.pos;
   // data::PlaneFlightData pd2;
 }
 data::PlaneData Plane::getData() const {
-  return data::PlaneData{this->info,
-                         {ms2kts(this->vel.value), -this->vel.heading},
-                         xy2geo(this->pos)}; // coordinate conversion
+  return data::PlaneData{this->_info,
+                         {ms2kts(this->_vel.value), -this->_vel.heading},
+                         xy2geo(this->_pos)}; // coordinate conversion
 }
 
 void Plane::setFlightData(const data::PlaneFlightData &pd) {
   // TODO: maybe implement a better function of setting the data
-  this->pos = geo2xy(pd.pos);
-  this->vel.heading = hdg2rad(pd.vel.heading);
-  this->vel.value = kts2ms(pd.vel.value);
-  this->target.pos = geo2xy(pd.targets.front());
+  this->_pos = geo2xy(pd.pos);
+  this->_vel.heading = hdg2rad(pd.vel.heading);
+  this->_vel.value = kts2ms(pd.vel.value);
+  this->_target.pos = geo2xy(pd.targets.front());
 }
 data::PlaneFlightData Plane::getFlightData() const {
     std::vector<GeoPos<double>> targets;
 
     // this is a heavy implementation, shoud be moved to a seperate msg that is sent only on
     // target updates
-    targets.reserve(flightPlan.route.size() + flightPlan.auxiliary.size() + 1);
-    targets.emplace_back(xy2geo(target.pos));
-    for (auto& seg : flightPlan.auxiliary) targets.emplace_back(xy2geo(seg.pos));
-    for (auto& seg : flightPlan.route) targets.emplace_back(xy2geo(seg.pos));
-    return data::PlaneFlightData{ this->info.id, this->info.squawk,
-                                {ms2kts(this->vel.value), -this->vel.heading},
-                                 xy2geo(this->pos), targets };
+    targets.reserve(_flightPlan.route.size() + _flightPlan.auxiliary.size() + 1);
+    targets.emplace_back(xy2geo(_target.pos));
+    for (auto& seg : _flightPlan.auxiliary) targets.emplace_back(xy2geo(seg.pos));
+    for (auto& seg : _flightPlan.route) targets.emplace_back(xy2geo(seg.pos));
+    return data::PlaneFlightData{ this->_info.id, this->_info.squawk,
+                                {ms2kts(this->_vel.value), -this->_vel.heading},
+                                 xy2geo(this->_pos), targets };
 }
 
 
 Plane::Plane(const data::PlaneData &data, const FlightPlan &flightplan,
              std::shared_ptr<const PlaneConfig> configPointer) {
-  this->info = data.info;
-  this->vel = data.vel;
-  this->vel.value = std::min(std::max(vel.value, configPointer->minSpeed),
+  this->_info = data.info;
+  this->_vel = data.vel;
+  this->_vel.value = std::min(std::max(_vel.value, configPointer->minSpeed),
                              configPointer->maxSpeed);
-  this->pos = geo2xy(data.pos);
-  this->pos.alt() =
-      std::min(std::max(pos.alt(), 0.0), configPointer->maxAltitude);
-  this->flightPlan = flightplan;
+  this->_pos = geo2xy(data.pos);
+  this->_pos.alt() =
+      std::min(std::max(_pos.alt(), 0.0), configPointer->maxAltitude);
+  this->_flightPlan = flightplan;
+  this->_mode = MODE::AUTO;
+  this->_auxParam.altMode = ALT_MODE::AUTO;
 
   this->config = configPointer;
   setClimbSpeed = config->deafultClimbingSpeed;
@@ -143,121 +145,167 @@ Plane::Plane(const data::PlaneData &data, const FlightPlan &flightplan,
 }
 
 void Plane::update(float timeDelta) {
-  // Debug
-  // std::cout << info.callSign << " target: " << target.pos
-  //          << " dist: " << distance(pos, target.pos) << std::endl;
-  // std::cout << "Hdg: " << rad2hdg(vel.heading) << " Speed: " << vel.value
-  //          << std::endl;
-  // std::cout << "Pos(GEO): " << xy2geo(pos) << std::endl;
-  // std::cout << "Pos (XY): " << pos << std::endl << std::endl;
+  //Debug
+  //std::cout << static_cast<std::underlying_type<MODE>::type>(_mode) << std::endl;
+  //std::cout << _info.callSign << " target: " << xy2geo(_target.pos)
+  //        << " dist: " << distance(_pos, _target.pos) << std::endl;
+  //std::cout << "Hdg: " << rad2hdg(_vel.heading) << " Speed: " << _vel.value
+  //        << std::endl;
+  //std::cout << "Pos(GEO): " << xy2geo(_pos) << std::endl;
+  //std::cout << "Pos (XY): " << _pos << std::endl << std::endl;
   updateFlightPlan();
   updateVelocity(timeDelta);
   updatePosition(timeDelta);
 }
 
 void Plane::updateVelocity(float timeDelta) {
-  double velDelta = target.vel.value - vel.value;
-  vel.value += sgn(velDelta) *
-               std::min(std::abs(velDelta),
-                        std::pow(config->accelerationFactor, 2) / vel.value) *
-               timeDelta;
-  vel.value = std::min(std::max(vel.value, config->minSpeed), config->maxSpeed);
+  double targetVel = (_mode == MODE::AUTO) ? _target.vel.value : _auxParam.vel.value;
 
-  double hdgDelta = findHeadingDelta(pos, target.pos);
-  vel.heading +=
+  double velDelta = targetVel - _vel.value;
+  _vel.value += sgn(velDelta) *
+               std::min(std::abs(velDelta),
+                        std::pow(config->accelerationFactor, 2) / _vel.value)
+                        * timeDelta;
+  _vel.value = std::min(std::max(_vel.value, config->minSpeed), config->maxSpeed);
+
+  double hdgDelta = findHeadingDelta(_pos, _target.pos);
+  _vel.heading +=
       sgn(hdgDelta) * std::min(std::abs(hdgDelta), getTurnFactor() * timeDelta);
-  vel.heading = fixAngle(vel.heading);
+  _vel.heading = fixAngle(_vel.heading);
 }
 
 void Plane::updatePosition(float timeDelta) {
-  pos.lat() += std::sin(vel.heading) * vel.value * timeDelta;
-  pos.lon() += std::cos(vel.heading) * vel.value * timeDelta;
-  double altitudeDelta = target.pos.alt() - pos.alt();
-  pos.alt() += sgn(altitudeDelta) *
-               std::min(std::abs(altitudeDelta), setClimbSpeed * timeDelta);
-  pos.alt() = std::max(std::min(pos.alt(), config->maxAltitude), 0.0);
+  // Position
+  _pos.lat() += std::sin(_vel.heading) * _vel.value * timeDelta;
+  _pos.lon() += std::cos(_vel.heading) * _vel.value * timeDelta;
+
+
+  // Altitude logic & Update
+  double targetAlt = (_mode == MODE::AUTO) ? _target.pos.alt() : _auxParam.alt;
+  double altitudeDelta = targetAlt - _pos.alt();
+
+  double climbSpeed = setClimbSpeed;
+  if (_auxParam.altMode == ALT_MODE::CHANGE || _auxParam.altMode == ALT_MODE::SET_CHANGE) {
+    climbSpeed = _auxParam.altChange;
+  }
+
+  if (_auxParam.altMode == ALT_MODE::CHANGE) {
+    _pos.alt() += climbSpeed;
+  } else {
+    _pos.alt() += sgn(altitudeDelta) *
+      std::min(std::abs(altitudeDelta), climbSpeed * timeDelta);
+  }
+  
+  _pos.alt() = std::max(std::min(_pos.alt(), config->maxAltitude), 0.0);
 }
 
 void Plane::updateFlightPlan(bool force, double margin) {
-  if (force || distance(pos, target.pos) < margin) {
-    if (flightPlan.route.size() == 0 && flightPlan.auxiliary.size() == 0 &&
-        !info.isGrounded) {
-      ignoreFlightPlan = true;
+  if (_mode == MODE::HDG) return;
+
+  if (force || distance(_pos, _target.pos) < margin) {
+    if ((_flightPlan.route.size() == 0 && _flightPlan.auxiliary.size() == 0) 
+        || (_mode == MODE::AUX && _flightPlan.auxiliary.size() == 0)) {
+      setModeHdg();
       return;
     }
+
     FlightSegment next;
-    if (flightPlan.auxiliary.size()) {
-      next = flightPlan.auxiliary.front();
-      flightPlan.auxiliary.pop_front();
+    if (_flightPlan.auxiliary.size()) {
+      next = _flightPlan.auxiliary.front();
+      _flightPlan.auxiliary.pop_front();
     } else {
-      next = flightPlan.route.front();
-      flightPlan.route.pop_front();
+      next = _flightPlan.route.front();
+      _flightPlan.route.pop_front();
     }
 
     if (next.useHeading) {
-      std::cout << "Changing Target " << std::endl;
+      std::cout << "Changing Target " << next.pos <<std::endl;
       vaildPathFound = false;
       generateHelperWaypoints(next);
     } else {
-      this->target = next;
+      addWaypoint(next, true);
+      this->_target = next;
       // maybe coord transformation should be moved to scenerio loading
     }
   }
 }
 
+void Plane::setModeHdg() {
+  _mode = MODE::HDG;
+  setAuxParam();
+}
+
+void Plane::setModeAux() {
+  _mode = MODE::AUX;
+  _flightPlan.auxiliary.clear();
+  setAuxParam();
+}
+
+void Plane::setModeAuto() {
+  _mode = MODE::AUTO;
+}
+
 double Plane::getTurnFactor() {
-  double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
-  return 9.81 / (vel.value * std::sqrt(std::pow(n, 2) - 1));
+  double n = (_declaredEmergency) ? config->maxLoad : config->normalLoad;
+  return 9.81 / _vel.value * std::sqrt(std::pow(n, 2) - 1);
 }
 
 double Plane::findHeadingDelta(GeoPos<double> pos, GeoPos<double> targetPos) {
-  double targetHeading = fixAngle(
-      std::atan2(targetPos.lat() - pos.lat(), targetPos.lon() - pos.lon()));
-  // std::cout << "Target Hdg: " << rad2dgr(targetHeading) << std::endl;
+  double targetHeading;
+  if (_mode == MODE::HDG) targetHeading = _auxParam.vel.heading;
+  else {
+    targetHeading = fixAngle(
+        std::atan2(targetPos.lat() - pos.lat(), targetPos.lon() - pos.lon()));
+  }
 
   // Check if turn is possible
-  if (checkMinRadius())
-    return 0;
+ /* if (_mode != MODE::HDG && checkMinRadius())
+    return 0;*/
 
   // Check if advanced pathfinding requires repositioning
-  if (!vaildPathFound) {
-    generateHelperWaypoints(target);
+  if (_mode != MODE::HDG && !vaildPathFound) {
+    generateHelperWaypoints(_target);
     return 0;
   }
 
-  double hdgDelta = targetHeading - vel.heading;
+  double hdgDelta = targetHeading - _vel.heading;
   double altDelta = (2 * PI - std::abs(hdgDelta)) * -sgn(hdgDelta);
   if (std::abs(altDelta) < std::abs(hdgDelta))
     hdgDelta = altDelta;
   return hdgDelta;
 }
 
-bool Plane::checkMinRadius() {
-  double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
-  double r = std::sqrt(-std::pow(target.vel.value, 4) /
-                       (std::pow(G, 2) * (1 - std::pow(n, 2))));
-  GeoPos<double> A = {{pos.lat() + std::sin(vel.heading + PI / 2) * r,
-                       pos.lon() + std::cos(vel.heading + PI / 2) * r,
-                       target.pos.alt()}};
-  GeoPos<double> B = {{pos.lat() - std::sin(vel.heading + PI / 2) * r,
-                       pos.lon() - std::cos(vel.heading + PI / 2) * r,
-                       target.pos.alt()}};
-  return (distance(target.pos, A) < r || distance(target.pos, B) < r);
+double Plane::getTurnRadius() {
+  double vel = std::max(_vel.value, _target.vel.value);
+  vel = std::min(std::max(vel, config->minSpeed), config->maxSpeed);
+  double n = (_declaredEmergency) ? config->maxLoad : config->normalLoad;
+  return std::sqrt(-std::pow(vel, 4) /
+    (std::pow(G, 2) * (1 - std::pow(n, 2))));
 }
 
-void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
-  // TO DO: check 4 circle non-overlaping match combinations and find
-  // coresponding 4 valid tangent lines if match exist stop ignoring heading
-  // delta -> vaildPathFound = true;
+bool Plane::checkMinRadius() {
+  double n = (_declaredEmergency) ? config->maxLoad : config->normalLoad;
+  double r = getTurnRadius();
+  GeoPos<double> A = {{_pos.lat() + std::sin(_vel.heading + PI / 2) * r,
+                       _pos.lon() + std::cos(_vel.heading + PI / 2) * r,
+                       _target.pos.alt()}};
+  GeoPos<double> B = {{_pos.lat() - std::sin(_vel.heading + PI / 2) * r,
+                       _pos.lon() - std::cos(_vel.heading + PI / 2) * r,
+                       _target.pos.alt()}};
+  return (distance(_target.pos, A) < r || distance(_target.pos, B) < r);
+}
 
+// Check 4 circle non-overlaping match combinations and find
+// coresponding 4 valid tangent lines 
+void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
+  targetSegment.useHeading = false;
   GeoPos<double> tPos = targetSegment.pos;
   Velocity tVel = targetSegment.vel;
 
-  double n = (declaredEmergency) ? config->maxLoad : config->normalLoad;
-  double rr =
-      -std::pow(tVel.value, 4) / (std::pow(G, 2) * (1 - std::pow(n, 2)));
-  double r = std::sqrt(rr);
+  double r = getTurnRadius();
+  double rr = r * r;
   std::cout << "R: " << r << std::endl;
+
   std::array<GeoPos<double>, 2> target_cs = {};
   std::array<GeoPos<double>, 2> my_cs = {};
 
@@ -271,13 +319,13 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
   target_cs[1] = {{std::sin(angle) * r + tPos.lat(),
                    std::cos(angle) * r + tPos.lon(), tPos.alt()}};
 
-  angle = this->vel.heading + PI / 2;
-  my_cs[0] = {{std::sin(angle) * r + this->pos.lat(),
-               std::cos(angle) * r + this->pos.lon(), this->pos.alt()}};
+  angle = _vel.heading + PI / 2;
+  my_cs[0] = {{std::sin(angle) * r + _pos.lat(),
+               std::cos(angle) * r + _pos.lon(), _pos.alt()}};
 
-  angle = this->vel.heading - PI / 2;
-  my_cs[1] = {{std::sin(angle) * r + this->pos.lat(),
-               std::cos(angle) * r + this->pos.lon(), this->pos.alt()}};
+  angle = _vel.heading - PI / 2;
+  my_cs[1] = {{std::sin(angle) * r + _pos.lat(),
+               std::cos(angle) * r + _pos.lon(), _pos.alt()}};
 
   auto get_non_intersections = [&](const std::array<GeoPos<double>, 2> &t,
                                    const std::array<GeoPos<double>, 2> &m)
@@ -370,16 +418,16 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
 
     std::cout << "DEBUG - 1: " << mtangent << " 2: " << ttangent << std::endl;
 
-    this->target = FlightSegment{mtangent, tVel, false};
-    this->flightPlan.auxiliary.push_back({ttangent, tVel, false});
-    targetSegment.useHeading = false;
-    this->flightPlan.auxiliary.push_back(targetSegment);
+    addWaypoint({ mtangent, tVel, false }, true);
+    addWaypoint({ ttangent, tVel, false });
+    addWaypoint(targetSegment);
+    
     this->vaildPathFound = true;
 
   } else {
     std::cout << "DEBUG: Path not found\n";
+    addWaypoint(targetSegment, true);
     this->vaildPathFound = false;
-    this->target = targetSegment;
   }
 }
 
@@ -398,16 +446,58 @@ void Plane::generateLandingWaypoints(bool orientation, double slopeAngle,
                               choice.pos.lon() + cos(dir) * distance, alt}};
   generateHelperWaypoints(FlightSegment{waypoint, config->landingSpeed, false});
   choice.vel.value = config->landingSpeed;
-  flightPlan.auxiliary.push_back(choice);
+  _flightPlan.auxiliary.push_back(choice);
+}
+
+void Plane::addWaypoint(FlightSegment segment, bool toFront) {
+  if (toFront) {
+    _target = segment;
+  } else {
+    _flightPlan.auxiliary.push_back(segment);
+  }
+}
+
+void Plane::setAuxParam() {
+    _auxParam.vel.heading = _vel.heading;
+    _auxParam.vel.value = _target.vel.value;
+    _auxParam.alt = _target.pos.alt();
+    _auxParam.altMode = ALT_MODE::SET;
 }
 
 // order handling
-void Plane::setAltitude(float altitude) {}
-void Plane::setHeadpoint(Vec<double, 2> point) {}
-void Plane::setHeading(float heading) {}
-void Plane::setVelocity(float vel) {}
-void Plane::setSquawk(const std::string &sq) { this->info.squawk = sq; }
-void Plane::followFlightPlan() {}
+void Plane::setAltitude(float altitude) {
+  if (_mode == MODE::AUTO) {
+    _target.pos.alt() = ft2meter(altitude);
+  } else {
+    _auxParam.alt = ft2meter(altitude);
+  }
+}
+
+void Plane::setHeadpoint(GeoPos<double> point) {
+  setModeAux();
+  FlightSegment seg = { geo2xy(point), _target.vel, false };
+  addWaypoint(seg, true);
+}
+
+void Plane::setHeading(float heading) {
+  setModeHdg();
+  _auxParam.vel.heading = hdg2rad(heading);
+}
+
+void Plane::setVelocity(float vel) {
+  if (_mode == MODE::AUTO) {
+    _target.vel.value = kts2ms(vel);
+  } else {
+    _auxParam.vel.value = kts2ms(vel);
+  }
+}
+
+void Plane::setSquawk(const std::string &sq) { this->_info.squawk = sq; }
+
+void Plane::followFlightPlan() {
+  setModeAuto();
+}
+
 void Plane::enterHolding() {}
 void Plane::landing() {}
 void Plane::touchAndGo() {}
