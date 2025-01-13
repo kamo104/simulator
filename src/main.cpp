@@ -37,34 +37,47 @@ int main(int argc, char *argv[]) {
           PlaneConfig{60.5, 241.9, 12000, 25, 20, 1.35, 2.56, 70, 30, 1000});
 
   FlightPlan plan;
-  //plan.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.42, 16.82, 10000.0}}),
-  //                                  Velocity{80, hdg2rad(0)}, false});
-  ///*plan.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{54, 16, 10000.0}}),
+  // plan.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.42, 16.82,
+  // 10000.0}}),
+  //                                   Velocity{80, hdg2rad(0)}, false});
+  ///*plan.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{54, 16,
+  /// 10000.0}}),
   //                                   Velocity{240, hdg2rad(0)}, false });*/
 
   simState->planes.push_back(
-      Plane(data::PlaneData{ {0, 0, false, "LOT", "286",
-          "SP-LVN", "LOT286", "2000", "Airbus A320"}, 
-          Velocity{100, hdg2rad(0)}, {{52.4, 16.9, 1000}} }, 
-          plan, configPtr));
+      Plane(data::PlaneData{{0, 0, false, "LOT", "286", "SP-LVN", "LOT286",
+                             "2000", "Airbus A320"},
+                            Velocity{100, hdg2rad(0)},
+                            {{52.4, 16.9, 1000}}},
+            plan, configPtr));
 
   FlightPlan plan2;
-  plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.5, 10000.0}}),
-                                    Velocity{100, hdg2rad(90)}, true });
-  plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.7, 10000.0}}),
-                                     Velocity{120, hdg2rad(0)}, false });
+  plan2.route.push_back(
+      FlightSegment{geo2xy(GeoPos<double>{{52.5, 16.5, 10000.0}}),
+                    Velocity{100, hdg2rad(90)}, true});
+  plan2.route.push_back(
+      FlightSegment{geo2xy(GeoPos<double>{{52.5, 16.7, 10000.0}}),
+                    Velocity{120, hdg2rad(0)}, false});
   simState->planes.push_back(
-      Plane(data::PlaneData{ {1, 1, false, "LOT", "287",
-          "SP-XTZ", "LOT287", "2010", "Airbus A320"},
-          Velocity{100, hdg2rad(0)}, {{52.4, 16.4, 1000}} },
-          plan2, configPtr));
- 
+      Plane(data::PlaneData{{1, 1, false, "LOT", "287", "SP-XTZ", "LOT287",
+                             "2010", "Airbus A320"},
+                            Velocity{100, hdg2rad(0)},
+                            {{52.4, 16.4, 1000}}},
+            plan2, configPtr));
 
   // End of testing stuff
 
-  serverState->acceptCallback = [&websocketServer](auto sessionState) {
+  serverState->acceptCallback = [&websocketServer,
+                                 &simulator](auto sessionState) {
     websocketServer->newSession(sessionState);
     std::cout << "New client with uuid: " << sessionState->uuid << std::endl;
+    if (!simulator->running) {
+      return;
+    }
+    const auto &aircrafts = simulator->getPlaneData();
+    json base = R"({"type":"start","aircrafts":[]})"_json;
+    base["aircrafts"] = aircrafts;
+    websocketServer->send(sessionState->uuid, base.dump());
   };
   serverState->disconnectCallback = [&websocketServer](auto sessionState) {
     websocketServer->deleteSession(sessionState->uuid);
@@ -80,6 +93,10 @@ int main(int argc, char *argv[]) {
     if (sessionState->nextMsgIsScenario) {
       sessionState->nextMsgIsScenario = false;
       // TODO: parse the scenario here
+      const auto &aircrafts = simulator->getPlaneData();
+      json base = R"({"type":"start","aircrafts":[]})"_json;
+      base["aircrafts"] = aircrafts;
+      websocketServer->broadcast(base.dump());
 
       simulator->start();
       return;

@@ -27,6 +27,8 @@ public:
   Simulator(std::shared_ptr<SimulatorState> state,
             std::shared_ptr<WebsocketServer> wsServer);
 
+  std::vector<data::PlaneData> getPlaneData();
+
   bool isRunning();
 
   void stop();

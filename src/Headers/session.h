@@ -2,11 +2,14 @@
 
 #include "common.h"
 #include "sessionState.h"
+#include <deque>
 
 class Session : public std::enable_shared_from_this<Session> {
   websocket::stream<beast::tcp_stream> _ws;
   http::request<http::string_body> _req;
   net::strand<net::io_context::executor_type> _strand;
+
+  std::deque<std::shared_ptr<beast::flat_buffer>> _writeQueue;
 
   std::shared_ptr<SessionState> _state;
   beast::flat_buffer _recvBuffer;
@@ -22,5 +25,6 @@ public:
   void do_read();
   void on_read(beast::error_code ec, std::size_t bytesTransferred);
 
+  void do_write();
   void on_write(beast::error_code ec, std::size_t bytesTransferred);
 };
