@@ -4,6 +4,7 @@
 
 const double PI = 3.1415;
 const double G = 9.81;
+const double MAGNETIC_NORTH_DIFF = 0.10192422222;
 
 double fixAngle(double angle);
 
@@ -12,6 +13,9 @@ double hdg2rad(double degrees);
 
 double rad2dgr(double radian);
 double rad2hdg(double degrees);
+
+double meter2ft(double alt);
+double ft2meter(double alt);
 
 double meter2lat(double distance);
 
