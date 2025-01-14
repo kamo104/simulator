@@ -16,6 +16,7 @@ struct PlaneInfo {
   int id;
   int sim_id;
   bool isGrounded;
+  double fuel;
   std::string airline;
   std::string flightNumber;
   std::string planeNumber;
@@ -105,6 +106,9 @@ private:
   void updateVelocity(float timeDelta);
   void updatePosition(float timeDelta);
   void updateFlightPlan(bool force = false, double margin = 25);
+  void updateParameters(float timeDelta);
+  void updateGroundBehavior(float timeDelta);
+
   double getTurnFactor();
   double findHeadingDelta(GeoPos<double> pos, GeoPos<double> targetPos);
   double getTurnRadius();
