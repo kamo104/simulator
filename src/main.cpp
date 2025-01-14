@@ -62,9 +62,17 @@ int main(int argc, char *argv[]) {
 
   // End of testing stuff
 
-  serverState->acceptCallback = [&websocketServer](auto sessionState) {
+  serverState->acceptCallback = [&websocketServer,
+                                 &simulator](auto sessionState) {
     websocketServer->newSession(sessionState);
     std::cout << "New client with uuid: " << sessionState->uuid << std::endl;
+    if (!simulator->running) {
+      return;
+    }
+    const auto &aircrafts = simulator->getPlaneData();
+    json base = R"({"type":"start","aircrafts":[]})"_json;
+    base["aircrafts"] = aircrafts;
+    websocketServer->send(sessionState->uuid, base.dump());
   };
   serverState->disconnectCallback = [&websocketServer](auto sessionState) {
     websocketServer->deleteSession(sessionState->uuid);
@@ -80,6 +88,10 @@ int main(int argc, char *argv[]) {
     if (sessionState->nextMsgIsScenario) {
       sessionState->nextMsgIsScenario = false;
       // TODO: parse the scenario here
+      const auto &aircrafts = simulator->getPlaneData();
+      json base = R"({"type":"start","aircrafts":[]})"_json;
+      base["aircrafts"] = aircrafts;
+      websocketServer->broadcast(base.dump());
 
       simulator->start();
       return;

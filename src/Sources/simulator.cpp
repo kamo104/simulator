@@ -1,19 +1,17 @@
 #include "simulator.h"
+#include "plane.h"
+
+std::vector<data::PlaneData> Simulator::getPlaneData() {
+  std::lock_guard<std::shared_mutex> guard(*_state->mtx);
+  std::vector<data::PlaneData> aircrafts;
+  aircrafts.reserve(_state->planes.size());
+  for (const auto &plane : _state->planes) {
+    aircrafts.emplace_back(plane.getData());
+  }
+  return aircrafts;
+}
 
 void Simulator::_loop() {
-  {
-    std::lock_guard<std::shared_mutex> guard(*_state->mtx);
-    json base = R"({"type":"start","aircrafts":[]})"_json;
-
-    std::vector<data::PlaneData> aircrafts;
-    aircrafts.reserve(_state->planes.size());
-    for (const auto &plane : _state->planes) {
-      aircrafts.emplace_back(plane.getData());
-    }
-    base["aircrafts"] = aircrafts;
-    // std::cout << base.dump() << std ::endl;
-    _wsServer->broadcast(base.dump());
-  }
   while (_runLoop) {
     // calculating time delta
     auto now = std::chrono::steady_clock::now();
