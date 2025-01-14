@@ -8,6 +8,7 @@ struct FlightSegment {
   GeoPos<double> pos;
   Velocity vel;
   bool useHeading;
+  bool interpolateAlt;
 };
 
 struct FlightPlan {

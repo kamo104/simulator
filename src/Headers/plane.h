@@ -54,7 +54,8 @@ void from_json(const json& j, PlaneFlightData& p);
 } // namespace data
 
 class Plane {
-  bool vaildPathFound = true;
+  bool _vaildPathFound = true;
+  GeoPos<double> _interPos;
 
 public:
   std::string uuid{""};
@@ -103,7 +104,7 @@ public:
 private:
   void updateVelocity(float timeDelta);
   void updatePosition(float timeDelta);
-  void updateFlightPlan(bool force = false, double margin = 10);
+  void updateFlightPlan(bool force = false, double margin = 25);
   double getTurnFactor();
   double findHeadingDelta(GeoPos<double> pos, GeoPos<double> targetPos);
   double getTurnRadius();

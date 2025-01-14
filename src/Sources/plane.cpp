@@ -188,6 +188,11 @@ void Plane::updatePosition(float timeDelta) {
 
   // Altitude logic & Update
   double targetAlt = (_mode == MODE::AUTO) ? _target.pos.alt() : _auxParam.alt;
+  if (_mode != MODE::HDG && _target.interpolateAlt) {
+    targetAlt = _interPos.alt() + (_target.pos.alt() - _interPos.alt()) /
+                distance(_target.pos, _interPos) * distance(_target.pos, _pos);
+  }
+  
   double altitudeDelta = targetAlt - _pos.alt();
 
   double climbSpeed = setClimbSpeed;
@@ -224,14 +229,18 @@ void Plane::updateFlightPlan(bool force, double margin) {
       _flightPlan.route.pop_front();
     }
 
+    if (next.interpolateAlt) {
+      _interPos = _pos;
+    }
+
     if (next.useHeading) {
       std::cout << "Changing Target " << next.pos <<std::endl;
-      vaildPathFound = false;
+      _vaildPathFound = false;
       generateHelperWaypoints(next);
     } else {
       addWaypoint(next, true);
       this->_target = next;
-      // maybe coord transformation should be moved to scenerio loading
+
     }
   }
 }
@@ -270,7 +279,7 @@ double Plane::findHeadingDelta(GeoPos<double> pos, GeoPos<double> targetPos) {
     return 0;*/
 
   // Check if advanced pathfinding requires repositioning
-  if (_mode != MODE::HDG && !vaildPathFound) {
+  if (_mode != MODE::HDG && !_vaildPathFound) {
     generateHelperWaypoints(_target);
     return 0;
   }
@@ -425,25 +434,25 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
 
     std::cout << "DEBUG - 1: " << mtangent << " 2: " << ttangent << std::endl;
 
-    addWaypoint({ mtangent, tVel, false }, true);
-    addWaypoint({ ttangent, tVel, false });
+    addWaypoint({ mtangent, tVel, false, false }, true);
+    addWaypoint({ ttangent, tVel, false, false });
     addWaypoint(targetSegment);
     
-    this->vaildPathFound = true;
+    this->_vaildPathFound = true;
 
   } else {
     std::cout << "DEBUG: Path not found\n";
     addWaypoint(targetSegment, true);
-    this->vaildPathFound = false;
+    this->_vaildPathFound = false;
   }
 }
 
 void Plane::generateLandingWaypoints(bool orientation, double slopeAngle,
                                      double distance) {
   FlightSegment landingA = {
-      {{52.423969, 16.81117,  0}}, {0.0, hdg2rad(100) - MAGNETIC_NORTH_DIFF}, false };
+      {{52.423969, 16.81117,  0}}, {0.0, hdg2rad(100) - MAGNETIC_NORTH_DIFF}, false, true };
   FlightSegment landingB = {
-      {{52.418973, 16.837063, 0}}, {0.0, hdg2rad(280) - MAGNETIC_NORTH_DIFF}, false };
+      {{52.418973, 16.837063, 0}}, {0.0, hdg2rad(280) - MAGNETIC_NORTH_DIFF}, false, true };
 
   FlightSegment choice = (orientation) ? landingB : landingA;
   double dir = choice.vel.heading - PI;
@@ -451,7 +460,7 @@ void Plane::generateLandingWaypoints(bool orientation, double slopeAngle,
 
   GeoPos<double> waypoint = {{choice.pos.lat() + sin(dir) * distance,
                               choice.pos.lon() + cos(dir) * distance, alt}};
-  generateHelperWaypoints(FlightSegment{ waypoint, {config->landingSpeed, choice.vel.heading}, false });
+  generateHelperWaypoints({ waypoint, {config->landingSpeed, choice.vel.heading}, false, false });
   choice.vel.value = config->landingSpeed;
   _flightPlan.auxiliary.push_back(choice);
 }
