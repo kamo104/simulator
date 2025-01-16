@@ -10,7 +10,7 @@
 #include <cmath>
 #include <controlParam.h>
 
-enum class MODE { AUTO, HDG, AUX, GROUNDED };
+enum class MODE { AUTO, HDG, AUX, GROUNDED, PLAYER };
 
 struct PlaneInfo {
   int id;
@@ -45,6 +45,7 @@ void from_json(const json &j, PlaneData &p);
 struct PlaneFlightData {
   int id;
   std::string squawk;
+  double fuel;
   Velocity vel;
   GeoPos<double> pos;
   std::vector<GeoPos<double>> targets;
@@ -102,6 +103,8 @@ public:
   void enterAirportLoop();
   // order handling
 
+  void setModePlayer();
+
 private:
   void updateVelocity(float timeDelta);
   void updatePosition(float timeDelta);
@@ -120,4 +123,5 @@ private:
   void setModeHdg();
   void setModeAux();
   void setModeAuto();
+  
 };

@@ -68,7 +68,7 @@ void to_json(json& j, const PlaneFlightData& p) {
 }
 
 // from_json function
-inline void from_json(const json& j, PlaneFlightData& p) {
+void from_json(const json& j, PlaneFlightData& p) {
     j.at("squawk").get_to(p.squawk);
     j.at("id").get_to(p.id);
 
@@ -81,13 +81,13 @@ inline void from_json(const json& j, PlaneFlightData& p) {
     pos.at("longitude").get_to(p.pos.lon());
     pos.at("altitude").get_to(p.pos.alt());
 
-    for (const auto& target : j.at("targets")) {
+    /*for (const auto& target : j.at("targets")) {
         double lat, lon, alt;
         target.at("latitude").get_to(lat);
         target.at("longitude").get_to(lon);
         target.at("altitude").get_to(alt);
         p.targets.push_back({ { lat, lon, alt } });
-    }
+    }*/
 }
 } // namespace data
 
@@ -107,9 +107,9 @@ data::PlaneData Plane::getData() const {
 void Plane::setFlightData(const data::PlaneFlightData &pd) {
   // TODO: maybe implement a better function of setting the data
   this->_pos = geo2xy(pd.pos);
-  this->_vel.heading = hdg2rad(pd.vel.heading);
+  this->_vel.heading = pd.vel.heading;
   this->_vel.value = kts2ms(pd.vel.value);
-  this->_target.pos = geo2xy(pd.targets.front());
+  //this->_target.pos = geo2xy(pd.targets.front());
 }
 data::PlaneFlightData Plane::getFlightData() const {
     std::vector<GeoPos<double>> targets;
@@ -125,7 +125,7 @@ data::PlaneFlightData Plane::getFlightData() const {
     if (_mode == MODE::AUTO) {
       for (auto& seg : _flightPlan.route) targets.emplace_back(xy2geo(seg.pos));
     }
-    return data::PlaneFlightData{ this->_info.id, this->_info.squawk,
+    return data::PlaneFlightData{ this->_info.id, this->_info.squawk, this->_info.fuel,
                                 {ms2kts(this->_vel.value), -this->_vel.heading},
                                  xy2geo(this->_pos), targets };
 }
@@ -148,6 +148,11 @@ Plane::Plane(const data::PlaneData &data, const FlightPlan &flightplan,
 
   this->_auxParam.altMode = ALT_MODE::AUTO;
 
+  if (_info.isGrounded) {
+      _mode = MODE::GROUNDED;
+  }
+
+
   updateFlightPlan(true);
 }
 
@@ -160,15 +165,20 @@ void Plane::update(float timeDelta) {
   //        << std::endl;
   //std::cout << "Pos(GEO): " << xy2geo(_pos) << std::endl;
   //std::cout << "Pos (XY): " << _pos << std::endl << std::endl;
-  updateParameters(timeDelta);
+  if (_mode == MODE::PLAYER) {
+      return;
+  }
+
   if (_mode == MODE::GROUNDED) {
     updateGroundBehavior(timeDelta);
   }
   else {
     updateFlightPlan();
-    updateVelocity(timeDelta);
-    updatePosition(timeDelta);
   }
+
+  updateParameters(timeDelta);
+  updatePosition(timeDelta);
+  updateVelocity(timeDelta);
 }
 
 void Plane::updateVelocity(float timeDelta) {
@@ -179,7 +189,7 @@ void Plane::updateVelocity(float timeDelta) {
                std::min(std::abs(velDelta),
                         std::pow(config->accelerationFactor, 2) / _vel.value)
                         * timeDelta;
-  _vel.value = std::min(std::max(_vel.value, config->minSpeed), config->maxSpeed);
+  if(_mode != MODE::GROUNDED) _vel.value = std::min(std::max(_vel.value, config->minSpeed), config->maxSpeed);
 
   double hdgDelta = findHeadingDelta(_pos, _target.pos);
   _vel.heading +=
@@ -253,7 +263,9 @@ void Plane::updateFlightPlan(bool force, double margin) {
 }
 
 void Plane::updateParameters(float timeDelta) {
-  _info.fuel -= config->fuelConsumption * timeDelta;
+  if (_mode != MODE::GROUNDED) {
+    _info.fuel -= config->fuelConsumption * timeDelta;
+  }
 
   if (_pos.alt() <= 0.1 && _vel.value < 10) {
     _mode = MODE::GROUNDED;
@@ -278,6 +290,10 @@ void Plane::setModeAux() {
 void Plane::setModeAuto() {
   _flightPlan.auxiliary.clear();
   _mode = MODE::AUTO;
+}
+
+void Plane::setModePlayer() {
+    _mode = MODE::PLAYER;
 }
 
 double Plane::getTurnFactor() {

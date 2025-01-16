@@ -25,7 +25,10 @@ int main(int argc, char *argv[]) {
   serverState->address = address;
   serverState->port = port;
 
+
   // Testing stuff
+  double simConnectId = 0;
+
   std::shared_ptr<SimulatorState> simState = std::make_shared<SimulatorState>(
       SimulatorState{std::move(std::make_unique<std::shared_mutex>()),
                      {},
@@ -36,6 +39,16 @@ int main(int argc, char *argv[]) {
       std::make_shared<const PlaneConfig>(
           PlaneConfig{60.5, 241.9, 12000, 5, 25, 20, 1.35, 2.56, 70, 30, 1000});
 
+
+  FlightPlan plan0;
+  simState->planes.push_back(
+      Plane(data::PlaneData{ {0, 0, true, 10000, "LOT", "286",
+          "SP-LVN", "PLAYER", "2500", "Mooney Bravo"},
+          Velocity{0, hdg2rad(288)}, {{52.418968, 16.837285, 0}} },
+          plan0, configPtr));
+
+  simState->planes.front().setModePlayer();
+
   FlightPlan plan;
   plan.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.42, 16.82, 10000.0}}),
                                     Velocity{80, hdg2rad(0)}, false});
@@ -43,8 +56,8 @@ int main(int argc, char *argv[]) {
   //                                   Velocity{240, hdg2rad(0)}, false });*/
 
   simState->planes.push_back(
-      Plane(data::PlaneData{ {0, 0, false, 10000, "LOT", "286",
-          "SP-LVN", "LOT286", "2000", "Airbus A320"}, 
+      Plane(data::PlaneData{ {1, 1, false, 10000, "LOT", "286",
+          "SP-LVN", "LOT286", "2000", "Mooney Bravo"},
           Velocity{100, hdg2rad(-30)}, {{52.4, 16.8, 1000}} }, 
           plan, configPtr));
 
@@ -54,8 +67,8 @@ int main(int argc, char *argv[]) {
   plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.7, 10000.0}}),
                                      Velocity{120, hdg2rad(0)}, false, false });
   simState->planes.push_back(
-      Plane(data::PlaneData{ {1, 1, false, 10000, "LOT", "287",
-          "SP-XTZ", "LOT287", "2010", "Airbus A320"},
+      Plane(data::PlaneData{ {2, 2, false, 10000, "LOT", "287",
+          "SP-XTZ", "LOT287", "2010", "Mooney Bravo"},
           Velocity{100, hdg2rad(0)}, {{52.4, 16.45, 1500}} },
           plan2, configPtr));
  
@@ -71,7 +84,8 @@ int main(int argc, char *argv[]) {
     }
     const auto &aircrafts = simulator->getPlaneData();
     json base = R"({"type":"start","aircrafts":[]})"_json;
-    base["aircrafts"] = aircrafts;
+    base["aircrafts"] = aircrafts; 
+    base["sim_id"] = 0; // < - wartoœæ pobrana ze scenariusza
     websocketServer->send(sessionState->uuid, base.dump());
   };
   serverState->disconnectCallback = [&websocketServer](auto sessionState) {
@@ -90,6 +104,7 @@ int main(int argc, char *argv[]) {
       // TODO: parse the scenario here
       const auto &aircrafts = simulator->getPlaneData();
       json base = R"({"type":"start","aircrafts":[]})"_json;
+      base["sim_id"] = 0; // < - wartoœæ pobrana ze scenariusza
       base["aircrafts"] = aircrafts;
       websocketServer->broadcast(base.dump());
 
@@ -109,15 +124,15 @@ int main(int argc, char *argv[]) {
         // FIX: maybe the examiner should be starting?
       } else if (msgType == "positions") {
         // TODO: update the simulation with the "real" planes's positions
-        std::vector<data::PlaneData> planeData =
-            jsonMsg["aircrafts"].template get<std::vector<data::PlaneData>>();
+        std::vector<data::PlaneFlightData> planeData =
+            jsonMsg["aircrafts"].template get<std::vector<data::PlaneFlightData>>();
         for (Plane &plane : simState->planes) {
           auto it = std::find_if(planeData.begin(), planeData.end(),
-                                 [&plane](const data::PlaneData &p) {
-                                   return p.info.id == plane._info.id;
+                                 [&plane](const data::PlaneFlightData &p) {
+                                   return p.id == plane._info.id;
                                  });
           if (it != planeData.end()) {
-            plane.setData(*it);
+            plane.setFlightData(*it);
           }
         }
       } else if (msgType == "order") {
