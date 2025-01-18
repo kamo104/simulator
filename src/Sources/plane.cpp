@@ -330,7 +330,7 @@ double Plane::getTurnRadius() {
   double vel = std::max(_vel.value, _target.vel.value);
   vel = std::min(std::max(vel, config->minSpeed), config->maxSpeed);
   double n = (_declaredEmergency) ? config->maxLoad : config->normalLoad;
-  return std::sqrt(-std::pow(vel, 4) /
+  return 1.1 * std::sqrt(-std::pow(vel, 4) /
     (std::pow(G, 2) * (1 - std::pow(n, 2))));
 }
 
@@ -381,25 +381,33 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
                std::cos(angle) * r + _pos.lon(), _pos.alt()}};
 
 
-  auto lerp = [](double p_from, double p_to, double p_weight) {
-    double diff = fmod(p_to - p_from, 2*PI);
-    double shortest = fmod(2.0 * diff, 2*PI) - diff;
-    return p_from + shortest * p_weight;
-  };
+  auto lerp = [](double p_from, double p_to, double p_weight, bool cw = true) {
+      double diff = cw ? fmod(p_to - p_from, 2 * PI) : fmod(p_from - p_to, 2 * PI);
+      double shortest = fmod(2.0 * diff, 2 * PI) - diff;
+      return p_from + shortest * p_weight;
+      };
+
 
   auto get_non_intersections = [&](const std::array<GeoPos<double>, 2> &t,
                                    const std::array<GeoPos<double>, 2> &m)
       -> std::vector<std::pair<int, int>> {
     std::vector<std::pair<int, int>> non_intersections;
 
+    double minDist = std::numeric_limits<double>::infinity();
     for (int i = 0; i < 2; i++) {
       for (int j = 0; j < 2; j++) {
         double dy, dx;
         dy = m[i].lat() - t[j].lat();
         dx = m[i].lon() - t[j].lon();
-
+        
         if (dx * dx + dy * dy >= rr * 4) {
-          non_intersections.push_back({j, i});
+          double dist = distance(t[j], m[i]);
+          if (dist < minDist) {
+            non_intersections.insert(non_intersections.begin(), {j, i});
+            minDist = dist;
+          } else {
+            non_intersections.push_back({ j, i });
+          }
         }
       }
     }
@@ -419,9 +427,9 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
     x2 = tcenter.lon();
     y2 = tcenter.lat();
 
-    std::array<std::array<double, 2>, 29> preTangent = { 0 };
-    std::array<std::array<double, 2>, 29> postTangent = { 0 };
 
+    std::vector<std::array<double, 2>> preTangent;
+    std::vector<std::array<double, 2>> postTangent;
 
     //double startangle = _vel.heading;
     //double endangle = tVel.heading;
@@ -433,53 +441,42 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
       double beta = 0; // ??? u nas oba kola maja ten sam radius. pelen wzor to:
       // asin((R-r)/sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))),
       // gdzie R i r to oba promienie
-      double alpha = gamma - beta;
+      double alpha = fixAngle(gamma - beta);
       std::cout << rad2dgr(alpha) << std::endl;
-      if (p.first == 1) {//prawo
-        x3 = x1 + r * std::sin(alpha);
-        y3 = y1 + r * std::cos(alpha);
 
-        x4 = x2 + r * std::sin(alpha);
-        y4 = y2 + r * std::cos(alpha);
+      double sign = (p.first == 1) ? 1 : -1;
 
-        GeoPos<double> mtangent = { {y3, x3, tPos.alt()} };
-        GeoPos<double> ttangent = { {y4, x4, tPos.alt()} };
+      x3 = x1 + sign * r * std::sin(alpha);
+      y3 = y1 + sign * r * std::cos(alpha);
 
-        double startangle = alpha + 2 * std::asin(0.5 * distance(_pos, mtangent) / r);
-        double endangle = 360 - (alpha - 2 * std::asin(0.5 * distance(tPos, ttangent) / r));
+      x4 = x2 + sign * r * std::sin(alpha);
+      y4 = y2 + sign * r * std::cos(alpha);
 
-        for (int i = 1; i < 30; i++) {
-          double a = lerp(startangle, alpha, i/30.);
-          double b = lerp(alpha, endangle,  i/30.);
-          preTangent[i - 1][0] = y1 + r * std::cos(a);
-          preTangent[i - 1][1] = x1 + r * std::sin(a);
+      GeoPos<double> mtangent = { {y3, x3, tPos.alt()} };
+      GeoPos<double> ttangent = { {y4, x4, tPos.alt()} };
 
-          postTangent[i - 1][0] = y2 + r * std::cos(b);
-          postTangent[i - 1][1] = x2 + r * std::sin(b);
-        }
-      }
-      else {//lewo
-        x3 = x1 - r * std::sin(alpha);
-        y3 = y1 - r * std::cos(alpha);
+      double startangle = alpha - std::acos((2 * rr - std::pow(distance(_pos, mtangent), 2)) / (2 * rr));
+      double endangle   = alpha + std::acos((2 * rr - std::pow(distance(tPos, ttangent), 2)) / (2 * rr));
+      double deltaAngle = (2 * PI) / std::ceil(r / 25);
 
-        x4 = x2 - r * std::sin(alpha);
-        y4 = y2 - r * std::cos(alpha);
+      startangle = fixAngle(startangle);
+      endangle = fixAngle(endangle);
 
-        GeoPos<double> mtangent = { {y3, x3, tPos.alt()} };
-        GeoPos<double> ttangent = { {y4, x4, tPos.alt()} };
+      while (std::abs(startangle - alpha) >= 1.1 * deltaAngle) {
+        std::cout << "start: " << rad2dgr(startangle) << std::endl;
+        preTangent.push_back({ y1 + sign * r * std::cos(startangle), x1 + sign * r * std::sin(startangle) });
+        std::cout << preTangent[preTangent.size() - 1][0] << " " << preTangent[preTangent.size() - 1][1] << std::endl;
+        startangle += sign * deltaAngle;
+        startangle = fixAngle(startangle);
+      } 
 
-        double startangle = alpha - std::acos((2 * rr - std::pow(distance(_pos, mtangent), 2)) / (2 * rr));
-        double endangle = alpha + std::acos((2 * rr - std::pow(distance(tPos, ttangent), 2)) / (2 * rr));
-
-        for (int i = 1; i < 30; i++) {
-          double a = lerp(startangle, alpha, i/30.);
-          double b = lerp(alpha, endangle, i/30.);
-          preTangent[i - 1][0] = y1 - r * std::cos(a);
-          preTangent[i - 1][1] = x1 - r * std::sin(a);
-
-          postTangent[i - 1][0] = y2 - r * std::cos(b);
-          postTangent[i - 1][1] = x2 - r * std::sin(b);
-        }
+      double tmpAlpha = alpha;
+      while (std::abs(endangle - tmpAlpha) >= 1.1 * deltaAngle) {
+        std::cout << "end: " << rad2dgr(tmpAlpha) << std::endl;
+        postTangent.push_back({ y2 + sign * r * std::cos(tmpAlpha), x2 + sign * r * std::sin(tmpAlpha) });
+        std::cout << postTangent[postTangent.size() - 1][0] << " " << postTangent[postTangent.size() - 1][1] << std::endl;
+        tmpAlpha += sign * deltaAngle;
+        tmpAlpha = fixAngle(tmpAlpha);
       }
 
     }
@@ -492,14 +489,14 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
 
       double tempx, tempy;
 
-      tempx = (-b + std::sqrt(b * b - 4 * a * c)) / 2 *
-        a; // funkcja kwadratowa, wiadomo powinno być +/- ale narazie
-      // jest sam +
+      tempx = (-b - std::sqrt(b * b - 4 * a * c)) / 2 * a; 
+      // funkcja kwadratowa, wiadomo powinno być +/- ale narazie jest sam -
       tempy = (C - tempx * (x2 - x1)) / (y2 - y1);
 
-      double alpha = -std::atan2(tempy, tempx);
+      double alpha = fixAngle( -std::atan2(tempy, tempx));
 
-      if (p.first == 1) {
+      if (p.first != 1) {
+        std::cout << "W lewo" << std::endl;
         x3 = x1 - r * std::sin(-alpha);
         y3 = y1 - r * std::cos(-alpha);
 
@@ -509,20 +506,31 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
         GeoPos<double> mtangent = { {y3, x3, tPos.alt()} };
         GeoPos<double> ttangent = { {y4, x4, tPos.alt()} };
 
-        double startangle = alpha + 2 * std::asin(0.5 * distance(_pos, mtangent) / r);
-        double endangle = 360 - (alpha - 2 * std::asin(0.5 * distance(tPos, ttangent) / r));
+        double startangle = alpha - std::acos((2 * rr - std::pow(distance(_pos, mtangent), 2)) / (2 * rr));
+        double endangle = alpha + std::acos((2 * rr - std::pow(distance(tPos, ttangent), 2)) / (2 * rr));
+        double deltaAngle = (2 * PI) / std::ceil(r / 25);
 
-        for (int i = 1; i < 30; i++) {
-          double a = startangle + (alpha - startangle) * (i / 30.);
-          double b = alpha + (endangle - alpha) * (i / 30.);
-          preTangent[i - 1][0] = y1 + r * std::cos(-a);
-          preTangent[i - 1][1] = x1 + r * std::sin(-a);
+        startangle = fixAngle(startangle);
+        endangle = fixAngle(endangle);
 
-          postTangent[i - 1][0] = y2 + r * std::cos(PI - b);
-          postTangent[i - 1][1] = x2 + r * std::sin(PI - b);
+        while (std::abs(startangle - alpha) >= 1.1 * deltaAngle) {
+          std::cout << "start: " << rad2dgr(startangle) << std::endl;
+          preTangent.push_back({ y1 -  r * std::cos(-startangle), x1 -  r * std::sin(-startangle) });
+          startangle -= deltaAngle;
+          startangle = fixAngle(startangle);
         }
+
+        double tmpAlpha = alpha;
+        while (std::abs(endangle - tmpAlpha) >= 1.1 * deltaAngle) {
+          std::cout << "end: " << rad2dgr(tmpAlpha) << std::endl;
+          postTangent.push_back({ y2 - r * std::cos(PI - tmpAlpha), x2 - r * std::sin(PI - tmpAlpha) });
+          tmpAlpha -= deltaAngle;
+          tmpAlpha = fixAngle(tmpAlpha);
+        }
+
       }
       else {
+        std::cout << "W prawo" << std::endl;
         x3 = x1 + r * std::sin(PI - alpha);
         y3 = y1 + r * std::cos(PI - alpha);
 
@@ -532,27 +540,39 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
         GeoPos<double> mtangent = { {y3, x3, tPos.alt()} };
         GeoPos<double> ttangent = { {y4, x4, tPos.alt()} };
 
-        double startangle = alpha + 2 * std::asin(0.5 * distance(_pos, mtangent) / r);
-        double endangle = 360 - (alpha - 2 * std::asin(0.5 * distance(tPos, ttangent) / r));
+        double startangle = alpha - std::acos((2 * rr - std::pow(distance(_pos, mtangent), 2)) / (2 * rr));
+        double endangle = alpha + std::acos((2 * rr - std::pow(distance(tPos, ttangent), 2)) / (2 * rr));
+        double deltaAngle = (2 * PI) / std::ceil(r / 25);
 
-        for (int i = 1; i < 30; i++) {
-          double a = startangle + (alpha - startangle) * (i / 30.);
-          double b = alpha + (endangle - alpha) * (i / 30.);
-          preTangent[i - 1][0] = y1 + r * std::cos(PI - a);
-          preTangent[i - 1][1] = x1 + r * std::sin(PI - a);
+        startangle = fixAngle(startangle);
+        endangle = fixAngle(endangle);
 
-          postTangent[i - 1][0] = y2 + r * std::cos(-b);
-          postTangent[i - 1][1] = x2 + r * std::sin(-b);
+        while (std::abs(startangle - alpha) >= 1.1 * deltaAngle) {
+          std::cout << "start: " << rad2dgr(startangle) << std::endl;
+          preTangent.push_back({ y1 + r * std::cos(PI - startangle), x1 + r * std::sin(PI - startangle) });
+          startangle += deltaAngle;
+          startangle = fixAngle(startangle);
         }
+
+        double tmpAlpha = alpha;
+        while (std::abs(endangle - tmpAlpha) >= 1.1 * deltaAngle) {
+          std::cout << "end: " << rad2dgr(tmpAlpha) << std::endl;
+          postTangent.push_back({ y2 + r * std::cos(- tmpAlpha), x2 + r * std::sin(- tmpAlpha) });
+          tmpAlpha -= deltaAngle;
+          tmpAlpha = fixAngle(tmpAlpha);
+        }
+
       }
     }
 
     GeoPos<double> mtangent = {{y3, x3, tPos.alt()}};
     GeoPos<double> ttangent = {{y4, x4, tPos.alt()}};
 
-    addWaypoint({ {{preTangent[0][0],preTangent[0][1],tPos.alt()}}, tVel, false, false}, true);
-    for (int i = 1; i < 29; i++) {
-      addWaypoint({ {{preTangent[i][0],preTangent[i][1],tPos.alt()}}, tVel, false, false });
+    if (preTangent.size()) {
+      addWaypoint({ {{preTangent[0][0],preTangent[0][1],tPos.alt()}}, tVel, false, false}, true);
+      for (int i = 1; i < preTangent.size(); i++) {
+        addWaypoint({ {{preTangent[i][0],preTangent[i][1],tPos.alt()}}, tVel, false, false });
+      }
     }
 
     std::cout << "DEBUG - 1: " << mtangent << " 2: " << ttangent << std::endl;
@@ -560,7 +580,7 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
     addWaypoint({ mtangent, tVel, false, false });
     addWaypoint({ ttangent, tVel, false, false });
 
-    for (int i = 0; i < 29; i++) {
+    for (int i = 0; i < postTangent.size(); i++) {
       addWaypoint({ {{postTangent[i][0],postTangent[i][1],tPos.alt()}}, tVel, false, false });
     }
 
@@ -575,14 +595,15 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
   }
 }
 
-void Plane::generateLandingWaypoints(bool orientation, double slopeAngle,
-                                     double distance) {
+void Plane::generateLandingWaypoints(bool orientation, double slopeAngle = 3,
+                                     double distance = 5000) {
   FlightSegment landingA = {
       {{52.423969, 16.81117,  0}}, {0.0, hdg2rad(100) - MAGNETIC_NORTH_DIFF}, false, true };
   FlightSegment landingB = {
       {{52.418973, 16.837063, 0}}, {0.0, hdg2rad(280) - MAGNETIC_NORTH_DIFF}, false, true };
 
   FlightSegment choice = (orientation) ? landingB : landingA;
+  choice.pos = geo2xy(choice.pos);
   double dir = choice.vel.heading - PI;
   double alt = distance * std::tan(dgr2rad(slopeAngle));
 
@@ -590,7 +611,8 @@ void Plane::generateLandingWaypoints(bool orientation, double slopeAngle,
                               choice.pos.lon() + cos(dir) * distance, alt}};
   generateHelperWaypoints({ waypoint, {config->landingSpeed, choice.vel.heading}, false, false });
   choice.vel.value = config->landingSpeed;
-  _flightPlan.auxiliary.push_back(choice);
+  addWaypoint(choice);
+  std::cout << choice.pos << std::endl;
 }
 
 void Plane::addWaypoint(FlightSegment segment, bool toFront) {
@@ -619,7 +641,7 @@ void Plane::setAltitude(float altitude) {
 
 void Plane::setHeadpoint(GeoPos<double> point) {
   setModeAux();
-  FlightSegment seg = { geo2xy(point), _target.vel, false };
+  FlightSegment seg = { geo2xy(point), _target.vel, false, false };
   addWaypoint(seg, true);
 }
 

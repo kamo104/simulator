@@ -24,7 +24,7 @@ void Simulator::_loop() {
     {
       std::lock_guard<std::shared_mutex> guard(*_state->mtx);
       for (auto &plane : _state->planes) {
-        plane.update(timeDelta);
+        plane.update(2*timeDelta);
       }
     }
 

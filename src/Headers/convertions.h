@@ -4,7 +4,7 @@
 
 const double PI = 3.1415;
 const double G = 9.81;
-const double MAGNETIC_NORTH_DIFF = 0.13962634016;
+const double MAGNETIC_NORTH_DIFF = 0.14835298642;
 
 double fixAngle(double angle);
 
@@ -24,6 +24,8 @@ double meter2long(double distance, double latitude);
 template <typename T> int sgn(T val) { return (T(0) < val) - (val < T(0)); }
 
 double distance(GeoPos<double> posA, GeoPos<double> posB);
+
+double distance(std::pair<double, double> posA, std::pair<double, double> posB);
 
 double ms2kts(double value);
 double kts2ms(double value);

@@ -87,8 +87,8 @@ public:
 
   void update(float timeDelta);
 
-  void generateLandingWaypoints(bool orientation, double slopeAngle = 3,
-                                double distance = 5000);
+  void generateLandingWaypoints(bool orientation, double slopeAngle,
+                                double distance );
 
   // order handling
   void setAltitude(float altitude);

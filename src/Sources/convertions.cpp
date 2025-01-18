@@ -21,6 +21,12 @@ double distance(GeoPos<double> posA, GeoPos<double> posB) {
                    std::pow(posA.alt() - posB.alt(), 2)*/);
 }
 
+double distance(std::pair<double,double> posA, std::pair<double, double> posB) {
+  return std::sqrt(std::pow(posA.first - posB.first, 2) +
+    std::pow(posA.second - posB.second, 2));
+}
+
+
 double fixAngle(double angle) {
   return fmod(fmod(angle, 2 * PI) + 2 * PI, 2 * PI);
 }

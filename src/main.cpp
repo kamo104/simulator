@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
 
   FlightPlan plan2;
   plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.5, 10000.0}}),
-                                     Velocity{100, hdg2rad(90)}, true, false });
+                                     Velocity{100, hdg2rad(270)}, true, false });
   plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.7, 10000.0}}),
                                      Velocity{120, hdg2rad(0)}, false, false });
   simState->planes.push_back(
