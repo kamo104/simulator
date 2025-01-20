@@ -1,10 +1,14 @@
 #include "convertions.h"
 
 double dgr2rad(double degrees) { return degrees * (PI / 180.0); }
-double hdg2rad(double degrees) { return fixAngle(dgr2rad(450 - degrees)); }
+double hdg2rad(double degrees) { 
+  return fixAngle(dgr2rad(450 - degrees) - MAG_NORTH_DIFF); 
+}
 
 double rad2dgr(double radian) { return radian * (180.0 / PI); }
-double rad2hdg(double degrees) { return fmod(450 - rad2dgr(degrees), 360.0); }
+double rad2hdg(double degrees) { 
+  return fmod(450 - rad2dgr(degrees) + MAG_NORTH_DIFF, 360.0); 
+}
 
 double meter2lat(double distance) { return distance * 0.0000089831117; }
 

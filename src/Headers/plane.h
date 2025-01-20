@@ -6,15 +6,17 @@
 #include "planeConfig.h"
 #include "vec.h"
 #include "velocity.h"
+#include "airportData.h"
+
 #include <atomic>
 #include <cmath>
 #include <controlParam.h>
 
-enum class MODE { AUTO, HDG, AUX, GROUNDED, PLAYER };
+enum class MODE { AUTO, HDG, AUX, GRD, PLAYER };
+enum class GRD_MODE { NONE, TAXI_OUT, IDLE, TAXI_IN, HOLD_RWY, TAKEOFF};
 
 struct PlaneInfo {
   int id;
-  int sim_id;
   bool isGrounded;
   double fuel;
   std::string airline;
@@ -56,18 +58,15 @@ void from_json(const json& j, PlaneFlightData& p);
 } // namespace data
 
 class Plane {
-  bool _vaildPathFound = true;
-  GeoPos<double> _interPos;
-
 public:
   std::string uuid{""};
   PlaneInfo _info;
   Velocity _vel;
   GeoPos<double> _pos;
 
-  MODE _mode;
+  MODE mode;
+  GRD_MODE grdMode;
   FlightSegment _target;
-  double setClimbSpeed;
 
   controlParam _auxParam;
   bool _declaredEmergency = false;
@@ -87,8 +86,12 @@ public:
 
   void update(float timeDelta);
 
-  void generateLandingWaypoints(bool orientation, double slopeAngle,
-                                double distance );
+  // Maybe should be a seprate his class/file
+  void generateLandingWaypoints(RUNWAY approach, bool succesful,
+            double slopeAngle, double distance );
+  void generateTaxiWaypoints(RUNWAY runway);
+  void generateRunwayWaypoints();
+  void generateTakeOffWaypoints();
 
   // order handling
   void setAltitude(float altitude);
@@ -98,8 +101,11 @@ public:
   void setSquawk(const std::string &sq);
   void followFlightPlan();
   void enterHolding();
-  void landing();
-  void touchAndGo();
+  void landing(std::string name);
+  void taxiToRunway(std::string name);
+  void enterRunway();
+  void touchAndGo(std::string name);
+  void takeOff();
   void enterAirportLoop();
   // order handling
 
@@ -108,9 +114,8 @@ public:
 private:
   void updateVelocity(float timeDelta);
   void updatePosition(float timeDelta);
-  void updateFlightPlan(bool force = false, double margin = 25);
+  void updateFlightPlan(bool force = false, double margin = 40);
   void updateParameters(float timeDelta);
-  void updateGroundBehavior(float timeDelta);
 
   double getTurnFactor();
   double findHeadingDelta(GeoPos<double> pos, GeoPos<double> targetPos);
@@ -123,5 +128,8 @@ private:
   void setModeHdg();
   void setModeAux();
   void setModeAuto();
+
+  double getTrgVel();
+  double getTrgAlt();
   
 };

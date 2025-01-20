@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
 
 
   // Testing stuff
-  double simConnectId = 0;
+  
 
   std::shared_ptr<SimulatorState> simState = std::make_shared<SimulatorState>(
       SimulatorState{std::move(std::make_unique<std::shared_mutex>()),
@@ -35,43 +35,59 @@ int main(int argc, char *argv[]) {
                      {},
                      std::chrono::microseconds(16666)});
 
+  //This should be loaded into map from map and used when loading scenario 
   std::shared_ptr<const PlaneConfig> configPtr =
       std::make_shared<const PlaneConfig>(
-          PlaneConfig{60.5, 241.9, 12000, 5, 25, 20, 1.35, 2.56, 70, 30, 1000});
+          PlaneConfig{40, 160, 12000, 5, 25, 220, 10, 1.35, 2.56, 70, 1000, 
+                      kts2ms(20), kts2ms(30) }); //in sim units
+
+  std::shared_ptr<const PlaneConfig> configPtr2 =
+    std::make_shared<const PlaneConfig>(
+      PlaneConfig{ 60.5, 241.9, 12000, 5, 25, 220, 10, 1.35, 2.56, 70, 2000, 
+                   kts2ms(20), kts2ms(30) }); //in sim units
 
 
   FlightPlan plan0;
   simState->planes.push_back(
-      Plane(data::PlaneData{ {0, 0, true, 10000, "LOT", "286",
+      Plane(data::PlaneData{ {0, true, 10000, "LOT", "286",
           "SP-LVN", "PLAYER", "2500", "Mooney Bravo"},
-          Velocity{0, hdg2rad(288)}, {{52.418968, 16.837285, 0}} },
+          Velocity{0, hdg2rad(-50)}, xy2geo(exitInner10_2.pos) },
           plan0, configPtr));
 
   simState->planes.front().setModePlayer();
 
   FlightPlan plan;
   plan.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.42, 16.82, 10000.0}}),
-                                    Velocity{80, hdg2rad(0)}, false});
-  ///*plan.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{54, 16, 10000.0}}),
-  //                                   Velocity{240, hdg2rad(0)}, false });*/
-
+                                    Velocity{80, hdg2rad(0)}});
   simState->planes.push_back(
-      Plane(data::PlaneData{ {1, 1, false, 10000, "LOT", "286",
+      Plane(data::PlaneData{ {1, false, 10000, "LOT", "286",
           "SP-LVN", "LOT286", "2000", "Mooney Bravo"},
           Velocity{100, hdg2rad(-30)}, {{52.4, 16.8, 1000}} }, 
-          plan, configPtr));
+          plan, configPtr2));
 
   FlightPlan plan2;
   plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.5, 10000.0}}),
-                                     Velocity{100, hdg2rad(270)}, true, false });
+                                     Velocity{100, hdg2rad(270)}, true });
   plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.7, 10000.0}}),
-                                     Velocity{120, hdg2rad(0)}, false, false });
+                                     Velocity{120, hdg2rad(0)} });
   simState->planes.push_back(
-      Plane(data::PlaneData{ {2, 2, false, 10000, "LOT", "287",
+      Plane(data::PlaneData{ {2, false, 10000, "LOT", "287",
           "SP-XTZ", "LOT287", "2010", "Mooney Bravo"},
           Velocity{100, hdg2rad(0)}, {{52.4, 16.45, 1500}} },
-          plan2, configPtr));
+          plan2, configPtr2));
  
+  simState->planes.push_back(
+    Plane(data::PlaneData{ {3, false, 1000, "", "",
+        "SP-256", "SP-256", "2010", "Mooney Bravo"},
+        Velocity{100, hdg2rad(270)}, {{52.41, 16.89, 2000}} },
+      plan2, configPtr));
+
+  simState->planes.push_back(
+    Plane(data::PlaneData{ {4, true, 1000, "", "",
+        "SP-001", "SP-001", "2000", "Mooney Bravo"},
+        Velocity{0, hdg2rad(-20)}, {{52.416081, 16.827386, 0}} },
+      plan2, configPtr));
+
 
   // End of testing stuff
 
@@ -85,7 +101,7 @@ int main(int argc, char *argv[]) {
     const auto &aircrafts = simulator->getPlaneData();
     json base = R"({"type":"start","aircrafts":[]})"_json;
     base["aircrafts"] = aircrafts; 
-    base["sim_id"] = 0; // < - wartoœæ pobrana ze scenariusza
+    base["sim_id"] = 0; // !!! tu wartosc sim_id z scenariusza
     websocketServer->send(sessionState->uuid, base.dump());
   };
   serverState->disconnectCallback = [&websocketServer](auto sessionState) {
@@ -104,7 +120,7 @@ int main(int argc, char *argv[]) {
       // TODO: parse the scenario here
       const auto &aircrafts = simulator->getPlaneData();
       json base = R"({"type":"start","aircrafts":[]})"_json;
-      base["sim_id"] = 0; // < - wartoœæ pobrana ze scenariusza
+      base["sim_id"] = 0; // !!! tu wartosc sim_id z scenariusza
       base["aircrafts"] = aircrafts;
       websocketServer->broadcast(base.dump());
 
@@ -139,6 +155,8 @@ int main(int argc, char *argv[]) {
         // TODO: pass the order to the "real" planes and update the simulation
         std::string orderType = jsonMsg["order_type"];
         int id = jsonMsg["id"];
+        if (id == 0) return; // !!! tu wartosc sim_id z scenariusza
+
         auto it =
             std::find_if(simState->planes.begin(), simState->planes.end(),
                          [id](const Plane &p1) { return p1._info.id == id; });
@@ -172,11 +190,21 @@ int main(int argc, char *argv[]) {
              }},
             {"follow_flight_plan",
              [it, &jsonMsg]() { it->followFlightPlan(); }},
-            {"enter_holding", [it, &jsonMsg]() { it->enterHolding(); }},
-            {"landing", [it, &jsonMsg]() { it->landing(); }},
-            {"touch_and_go", [it, &jsonMsg]() { it->touchAndGo(); }},
+            {"enter_holding", 
+             [it, &jsonMsg]() { 
+              it->taxiToRunway(jsonMsg["data"]["name"].template get<std::string>());
+             }},
+            {"landing", 
+             [it, &jsonMsg]() { 
+              it->landing(jsonMsg["data"]["name"].template get<std::string>()); 
+             }},
+            {"touch_and_go", 
+             [it, &jsonMsg]() { 
+              it->landing(jsonMsg["data"]["name"].template get<std::string>()); 
+             }},
+            {"enter_runway", [it, &jsonMsg]() { it->enterRunway(); }},
             {"enter_airport_loop",
-             [it, &jsonMsg]() { it->enterAirportLoop(); }}};
+             [it, &jsonMsg]() { it->takeOff(); }}};
 
         if (fnMap.find(orderType) != fnMap.end()) {
           fnMap[orderType]();

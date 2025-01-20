@@ -4,7 +4,7 @@
 
 const double PI = 3.1415;
 const double G = 9.81;
-const double MAGNETIC_NORTH_DIFF = 0.14835298642;
+const double MAG_NORTH_DIFF = 0.1308996939;
 
 double fixAngle(double angle);
 
