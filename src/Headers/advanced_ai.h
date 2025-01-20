@@ -1,3 +1,7 @@
+#pragma once
+#include "common.h"
+#include "convertions.h"
+
 struct Waypoint {
     double x;
     double y;

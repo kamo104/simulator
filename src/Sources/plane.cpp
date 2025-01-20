@@ -1,5 +1,4 @@
 #include "plane.h"
-#include "advanced_ai.h"
 
 namespace data {
 
@@ -371,7 +370,14 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
   Waypoint start = { _pos.lon(), _pos.lat(), _vel.heading };
   Waypoint end = { tPos.lon(), tPos.lat(), tVel.heading };
 
-  auto route = generateShortestRoute(start, end, r, std::ceil(r / 25.0));
+  int pointCount = int(std::ceil(r / 25.0));
+  auto route = generateShortestRoute(start, end, r, pointCount);
+  
+  if (route.size() == 0) {
+    addWaypoint(targetSegment);
+    _flightPlan.vaildPathFound = false;
+    return;
+  }
 
 
   addWaypoint({ {{route[0].y, route[0].x, tPos.alt()}}, tVel, false, false}, true);
@@ -379,7 +385,8 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
       addWaypoint({ {{route[i].y, route[i].x, tPos.alt()}}, tVel, false, false });
   }
 
-  this->_vaildPathFound = true;
+  _flightPlan.vaildPathFound = true;
+  addWaypoint(targetSegment);
 
 }
 

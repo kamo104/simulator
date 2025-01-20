@@ -7,6 +7,7 @@
 #include "vec.h"
 #include "velocity.h"
 #include "airportData.h"
+#include "advanced_ai.h"
 
 #include <atomic>
 #include <cmath>
