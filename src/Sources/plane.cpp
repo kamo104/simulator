@@ -1,4 +1,5 @@
 #include "plane.h"
+#include "advanced_ai.h"
 
 namespace data {
 
@@ -346,6 +347,8 @@ bool Plane::checkMinRadius() {
   return (distance(_target.pos, A) < r || distance(_target.pos, B) < r);
 }
 
+
+
 // Check 4 circle non-overlaping match combinations and find
 // coresponding 4 valid tangent lines 
 void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
@@ -354,245 +357,20 @@ void Plane::generateHelperWaypoints(FlightSegment targetSegment) {
   Velocity tVel = targetSegment.vel;
 
   double r = getTurnRadius();
-  double rr = r * r;
-  std::cout << "R: " << r << std::endl;
-
-  std::array<GeoPos<double>, 2> target_cs = {};
-  std::array<GeoPos<double>, 2> my_cs = {};
-
   
+  Waypoint start = { _pos.lon(), _pos.lat(), _vel.heading };
+  Waypoint end = { tPos.lon(), tPos.lat(), tVel.heading };
 
-  // left first
-  double angle;
-  angle = tVel.heading + PI / 2;
-  target_cs[0] = {{std::sin(angle) * r + tPos.lat(),
-                   std::cos(angle) * r + tPos.lon(), tPos.alt()}};
-
-  angle = tVel.heading - PI / 2;
-  target_cs[1] = {{std::sin(angle) * r + tPos.lat(),
-                   std::cos(angle) * r + tPos.lon(), tPos.alt()}};
-
-  angle = _vel.heading + PI / 2;
-  my_cs[0] = {{std::sin(angle) * r + _pos.lat(),
-               std::cos(angle) * r + _pos.lon(), _pos.alt()}};
-
-  angle = _vel.heading - PI / 2;
-  my_cs[1] = {{std::sin(angle) * r + _pos.lat(),
-               std::cos(angle) * r + _pos.lon(), _pos.alt()}};
+  auto route = generateShortestRoute(start, end, r, std::ceil(r / 25.0));
 
 
-  auto lerp = [](double p_from, double p_to, double p_weight, bool cw = true) {
-      double diff = cw ? fmod(p_to - p_from, 2 * PI) : fmod(p_from - p_to, 2 * PI);
-      double shortest = fmod(2.0 * diff, 2 * PI) - diff;
-      return p_from + shortest * p_weight;
-      };
-
-
-  auto get_non_intersections = [&](const std::array<GeoPos<double>, 2> &t,
-                                   const std::array<GeoPos<double>, 2> &m)
-      -> std::vector<std::pair<int, int>> {
-    std::vector<std::pair<int, int>> non_intersections;
-
-    double minDist = std::numeric_limits<double>::infinity();
-    for (int i = 0; i < 2; i++) {
-      for (int j = 0; j < 2; j++) {
-        double dy, dx;
-        dy = m[i].lat() - t[j].lat();
-        dx = m[i].lon() - t[j].lon();
-        
-        if (dx * dx + dy * dy >= rr * 4) {
-          double dist = distance(t[j], m[i]);
-          if (dist < minDist) {
-            non_intersections.insert(non_intersections.begin(), {j, i});
-            minDist = dist;
-          } else {
-            non_intersections.push_back({ j, i });
-          }
-        }
-      }
-    }
-
-    return non_intersections;
-  };
-
-  auto non_intersections = get_non_intersections(target_cs, my_cs);
-  if (non_intersections.size() > 0) {
-    const auto& p = non_intersections[0];
-    const auto& tcenter = target_cs[p.first];
-    const auto& mcenter = my_cs[p.second];
-
-    double x1, x2, x3, x4, y1, y2, y3, y4;
-    x1 = mcenter.lon();
-    y1 = mcenter.lat();
-    x2 = tcenter.lon();
-    y2 = tcenter.lat();
-
-
-    std::vector<std::array<double, 2>> preTangent;
-    std::vector<std::array<double, 2>> postTangent;
-
-    //double startangle = _vel.heading;
-    //double endangle = tVel.heading;
-
-    if (p.first == p.second) {
-      // po tej samej stronie, sytuacja A
-
-      double gamma = -std::atan2(y2 - y1, x2 - x1);
-      double beta = 0; // ??? u nas oba kola maja ten sam radius. pelen wzor to:
-      // asin((R-r)/sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))),
-      // gdzie R i r to oba promienie
-      double alpha = fixAngle(gamma - beta);
-      std::cout << rad2dgr(alpha) << std::endl;
-
-      double sign = (p.first == 1) ? 1 : -1;
-
-      x3 = x1 + sign * r * std::sin(alpha);
-      y3 = y1 + sign * r * std::cos(alpha);
-
-      x4 = x2 + sign * r * std::sin(alpha);
-      y4 = y2 + sign * r * std::cos(alpha);
-
-      GeoPos<double> mtangent = { {y3, x3, tPos.alt()} };
-      GeoPos<double> ttangent = { {y4, x4, tPos.alt()} };
-
-      double startangle = alpha - std::acos((2 * rr - std::pow(distance(_pos, mtangent), 2)) / (2 * rr));
-      double endangle   = alpha + std::acos((2 * rr - std::pow(distance(tPos, ttangent), 2)) / (2 * rr));
-      double deltaAngle = (2 * PI) / std::ceil(r / 25);
-
-      startangle = fixAngle(startangle);
-      endangle = fixAngle(endangle);
-
-      while (std::abs(startangle - alpha) >= 1.1 * deltaAngle) {
-        std::cout << "start: " << rad2dgr(startangle) << std::endl;
-        preTangent.push_back({ y1 + sign * r * std::cos(startangle), x1 + sign * r * std::sin(startangle) });
-        std::cout << preTangent[preTangent.size() - 1][0] << " " << preTangent[preTangent.size() - 1][1] << std::endl;
-        startangle += sign * deltaAngle;
-        startangle = fixAngle(startangle);
-      } 
-
-      double tmpAlpha = alpha;
-      while (std::abs(endangle - tmpAlpha) >= 1.1 * deltaAngle) {
-        std::cout << "end: " << rad2dgr(tmpAlpha) << std::endl;
-        postTangent.push_back({ y2 + sign * r * std::cos(tmpAlpha), x2 + sign * r * std::sin(tmpAlpha) });
-        std::cout << postTangent[postTangent.size() - 1][0] << " " << postTangent[postTangent.size() - 1][1] << std::endl;
-        tmpAlpha += sign * deltaAngle;
-        tmpAlpha = fixAngle(tmpAlpha);
-      }
-
-    }
-    else {
-      // po przeciwnych stronach
-      double C = 4 * rr + x1 * (x2 - x1) + y1 * (y2 - y1);
-      double a = -((x2 - x1) * x2 + y2 * (y2 - y1));
-      double b = x2 * C + (x2 - x1) * x2 * y2 + y2 * y2 * (y2 - y1);
-      double c = -x2 * y2 * C;
-
-      double tempx, tempy;
-
-      tempx = (-b - std::sqrt(b * b - 4 * a * c)) / 2 * a; 
-      // funkcja kwadratowa, wiadomo powinno być +/- ale narazie jest sam -
-      tempy = (C - tempx * (x2 - x1)) / (y2 - y1);
-
-      double alpha = fixAngle( -std::atan2(tempy, tempx));
-
-      if (p.first != 1) {
-        std::cout << "W lewo" << std::endl;
-        x3 = x1 - r * std::sin(-alpha);
-        y3 = y1 - r * std::cos(-alpha);
-
-        x4 = x2 - r * std::sin(PI - alpha);
-        y4 = y2 - r * std::cos(PI - alpha);
-
-        GeoPos<double> mtangent = { {y3, x3, tPos.alt()} };
-        GeoPos<double> ttangent = { {y4, x4, tPos.alt()} };
-
-        double startangle = alpha - std::acos((2 * rr - std::pow(distance(_pos, mtangent), 2)) / (2 * rr));
-        double endangle = alpha + std::acos((2 * rr - std::pow(distance(tPos, ttangent), 2)) / (2 * rr));
-        double deltaAngle = (2 * PI) / std::ceil(r / 25);
-
-        startangle = fixAngle(startangle);
-        endangle = fixAngle(endangle);
-
-        while (std::abs(startangle - alpha) >= 1.1 * deltaAngle) {
-          std::cout << "start: " << rad2dgr(startangle) << std::endl;
-          preTangent.push_back({ y1 -  r * std::cos(-startangle), x1 -  r * std::sin(-startangle) });
-          startangle -= deltaAngle;
-          startangle = fixAngle(startangle);
-        }
-
-        double tmpAlpha = alpha;
-        while (std::abs(endangle - tmpAlpha) >= 1.1 * deltaAngle) {
-          std::cout << "end: " << rad2dgr(tmpAlpha) << std::endl;
-          postTangent.push_back({ y2 - r * std::cos(PI - tmpAlpha), x2 - r * std::sin(PI - tmpAlpha) });
-          tmpAlpha -= deltaAngle;
-          tmpAlpha = fixAngle(tmpAlpha);
-        }
-
-      }
-      else {
-        std::cout << "W prawo" << std::endl;
-        x3 = x1 + r * std::sin(PI - alpha);
-        y3 = y1 + r * std::cos(PI - alpha);
-
-        x4 = x2 + r * std::sin(-alpha);
-        y4 = y2 + r * std::cos(-alpha);
-
-        GeoPos<double> mtangent = { {y3, x3, tPos.alt()} };
-        GeoPos<double> ttangent = { {y4, x4, tPos.alt()} };
-
-        double startangle = alpha - std::acos((2 * rr - std::pow(distance(_pos, mtangent), 2)) / (2 * rr));
-        double endangle = alpha + std::acos((2 * rr - std::pow(distance(tPos, ttangent), 2)) / (2 * rr));
-        double deltaAngle = (2 * PI) / std::ceil(r / 25);
-
-        startangle = fixAngle(startangle);
-        endangle = fixAngle(endangle);
-
-        while (std::abs(startangle - alpha) >= 1.1 * deltaAngle) {
-          std::cout << "start: " << rad2dgr(startangle) << std::endl;
-          preTangent.push_back({ y1 + r * std::cos(PI - startangle), x1 + r * std::sin(PI - startangle) });
-          startangle += deltaAngle;
-          startangle = fixAngle(startangle);
-        }
-
-        double tmpAlpha = alpha;
-        while (std::abs(endangle - tmpAlpha) >= 1.1 * deltaAngle) {
-          std::cout << "end: " << rad2dgr(tmpAlpha) << std::endl;
-          postTangent.push_back({ y2 + r * std::cos(- tmpAlpha), x2 + r * std::sin(- tmpAlpha) });
-          tmpAlpha -= deltaAngle;
-          tmpAlpha = fixAngle(tmpAlpha);
-        }
-
-      }
-    }
-
-    GeoPos<double> mtangent = {{y3, x3, tPos.alt()}};
-    GeoPos<double> ttangent = {{y4, x4, tPos.alt()}};
-
-    if (preTangent.size()) {
-      addWaypoint({ {{preTangent[0][0],preTangent[0][1],tPos.alt()}}, tVel, false, false}, true);
-      for (int i = 1; i < preTangent.size(); i++) {
-        addWaypoint({ {{preTangent[i][0],preTangent[i][1],tPos.alt()}}, tVel, false, false });
-      }
-    }
-
-    std::cout << "DEBUG - 1: " << mtangent << " 2: " << ttangent << std::endl;
-
-    addWaypoint({ mtangent, tVel, false, false });
-    addWaypoint({ ttangent, tVel, false, false });
-
-    for (int i = 0; i < postTangent.size(); i++) {
-      addWaypoint({ {{postTangent[i][0],postTangent[i][1],tPos.alt()}}, tVel, false, false });
-    }
-
-    addWaypoint(targetSegment);
-    
-    this->_vaildPathFound = true;
-
-  } else {
-    std::cout << "DEBUG: Path not found\n";
-    addWaypoint(targetSegment, true);
-    this->_vaildPathFound = false;
+  addWaypoint({ {{route[0].y, route[0].x, tPos.alt()}}, tVel, false, false}, true);
+  for (int i = 1; i < route.size(); i++) {
+      addWaypoint({ {{route[i].y, route[i].x, tPos.alt()}}, tVel, false, false });
   }
+
+  this->_vaildPathFound = true;
+
 }
 
 void Plane::generateLandingWaypoints(bool orientation, double slopeAngle = 3,

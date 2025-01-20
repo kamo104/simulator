@@ -64,8 +64,8 @@ int main(int argc, char *argv[]) {
   FlightPlan plan2;
   plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.5, 10000.0}}),
                                      Velocity{100, hdg2rad(270)}, true, false });
-  plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.7, 10000.0}}),
-                                     Velocity{120, hdg2rad(0)}, false, false });
+  /*plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.7, 10000.0}}),
+                                     Velocity{120, hdg2rad(0)}, false, false });*/
   simState->planes.push_back(
       Plane(data::PlaneData{ {2, 2, false, 10000, "LOT", "287",
           "SP-XTZ", "LOT287", "2010", "Mooney Bravo"},
