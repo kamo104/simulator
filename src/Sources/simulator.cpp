@@ -37,6 +37,7 @@ void Simulator::_loop() {
     json base = R"({"type":"positions","aircrafts":[]})"_json;
     base["aircrafts"] = flightData;
     _wsServer->broadcast(base.dump());
+    std::cerr << "broadcasting pos update:" << base.dump() << std::endl;
 
     auto n2 = std::chrono::steady_clock::now();
     std::this_thread::sleep_for(_state->updateInterval - (n2 - now));

@@ -37,3 +37,5 @@ const double matrixConst[2] = {-5.83292455e+06, -1.15021977e+06};
 GeoPos<double> geo2xy(GeoPos<double> pos);
 
 GeoPos<double> xy2geo(GeoPos<double> pos);
+
+double parseDMS(const std::string &dms);

@@ -10,7 +10,7 @@ void to_json(json &j, const PlaneInfo &p) {
       {"airline", p.airline},
       {"flight_number", p.flightNumber},
       {"plane_number", p.planeNumber},
-      {"callSign", p.callSign},
+      {"callsign", p.callSign},
       {"squawk", p.squawk},
       {"model", p.model},
   };
@@ -21,10 +21,13 @@ void from_json(const json &j, PlaneInfo &p) {
   j.at("sim_id").get_to(p.sim_id);
   j.at("isGrounded").get_to(p.isGrounded);
   j.at("airline").get_to(p.airline);
-  j.at("flightNumber").get_to(p.flightNumber);
-  j.at("planeNumber").get_to(p.planeNumber);
-  j.at("callSign").get_to(p.callSign);
+  j.at("flight_number").get_to(p.flightNumber);
+  j.at("plane_number").get_to(p.planeNumber);
+  j.at("callsign").get_to(p.callSign);
   j.at("squawk").get_to(p.squawk);
+  auto it = j.find("model");
+  if (it == j.end())
+    return;
   j.at("model").get_to(p.model);
 }
 // PlaneInfo parsing

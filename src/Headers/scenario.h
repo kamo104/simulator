@@ -19,12 +19,8 @@ struct ScenarioWaypoint {
   GeoPos<double> position;
   Velocity velocity;
 
-  static FlightSegment asFlightSegment(const ScenarioWaypoint &wp) {
-    return FlightSegment{wp.position, wp.velocity, false};
-  }
-  FlightSegment asFlightSegment() const {
-    return ScenarioWaypoint::asFlightSegment(*this);
-  }
+  static FlightSegment asFlightSegment(const ScenarioWaypoint &wp);
+  FlightSegment asFlightSegment() const;
 };
 
 void to_json(json &j, const ScenarioWaypoint &p);
@@ -41,16 +37,8 @@ struct ScenarioFlight {
   std::string weather;
   std::vector<ScenarioWaypoint> waypoints;
 
-  static FlightPlan asFlightPlan(const ScenarioFlight &sf) {
-    FlightPlan plan;
-    for (const auto &waypoint : sf.waypoints) {
-      plan.route.push_front(waypoint.asFlightSegment());
-    }
-    return plan;
-  }
-  FlightPlan asFlightPlan() const {
-    return ScenarioFlight::asFlightPlan(*this);
-  }
+  static FlightPlan asFlightPlan(const ScenarioFlight &sf);
+  FlightPlan asFlightPlan() const;
 };
 
 void to_json(json &j, const ScenarioFlight &p);
@@ -60,20 +48,7 @@ void from_json(const json &j, ScenarioFlight &p);
 struct Scenario {
   std::vector<ScenarioFlight> flights;
 
-  std::vector<Plane> getPlanes() {
-    std::vector<Plane> planes;
-    planes.reserve(flights.size());
-    for (const auto &flight : flights) {
-      // TODO: create PlaneConfig based on the type_of_aircraft
-      std::shared_ptr<const PlaneConfig> configPtr =
-          std::make_shared<const PlaneConfig>(PlaneConfig{
-              60.5, 241.9, 12000, 25, 20, 1.35, 2.56, 70, 30, 1000});
-
-      planes.emplace_back(
-          Plane(flight.planeData, flight.asFlightPlan(), configPtr));
-    }
-    return planes;
-  }
+  std::vector<Plane> getPlanes();
 };
 
 void to_json(json &j, const Scenario &p);

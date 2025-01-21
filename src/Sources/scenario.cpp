@@ -1,6 +1,19 @@
 #include "scenario.h"
+#include "convertions.h"
 
 namespace data {
+FlightSegment ScenarioWaypoint::asFlightSegment(const ScenarioWaypoint &wp) {
+  // return FlightSegment{
+  //     geo2xy(wp.position),
+  //     {kts2ms(wp.velocity.value), hdg2rad(wp.velocity.heading)},
+  //     false};
+  return FlightSegment{
+      wp.position, {wp.velocity.value, wp.velocity.heading}, false};
+}
+FlightSegment ScenarioWaypoint::asFlightSegment() const {
+  return ScenarioWaypoint::asFlightSegment(*this);
+}
+
 // ScenarioWaypoint parsing
 void to_json(json &j, const ScenarioWaypoint &p) {
   j = json{{"id", p.id},
@@ -25,8 +38,23 @@ void from_json(const json &j, ScenarioWaypoint &p) {
   j.at("events").get_to(p.events);
   j.at("position").get_to(p.position);
   j.at("velocity").get_to(p.velocity);
+
+  // conversion to the internal repr
+  // p.position = geo2xy(p.position);
+  // p.velocity = {kts2ms(p.velocity.value), hdg2rad(p.velocity.heading)};
 };
 // ScenarioWaypoint parsing
+
+FlightPlan ScenarioFlight::asFlightPlan(const ScenarioFlight &sf) {
+  FlightPlan plan;
+  for (const auto &waypoint : sf.waypoints) {
+    plan.route.push_front(waypoint.asFlightSegment());
+  }
+  return plan;
+}
+FlightPlan ScenarioFlight::asFlightPlan() const {
+  return ScenarioFlight::asFlightPlan(*this);
+}
 
 // ScenarioFlight parsing
 void to_json(json &j, const ScenarioFlight &p) {
@@ -47,6 +75,23 @@ void from_json(const json &j, ScenarioFlight &p) {
   return;
 };
 // ScenarioFlight parsing
+
+std::vector<Plane> Scenario::getPlanes() {
+  std::vector<Plane> planes;
+  planes.reserve(flights.size());
+  for (const auto &flight : flights) {
+    // TODO: create PlaneConfig based on the type_of_aircraft
+    std::shared_ptr<const PlaneConfig> configPtr =
+        std::make_shared<const PlaneConfig>(
+            PlaneConfig{60.5, 241.9, 12000, 25, 20, 1.35, 2.56, 70, 30, 1000});
+    Plane p = Plane(flight.planeData, flight.asFlightPlan(), configPtr);
+    // conversion to the internal repr
+    // p._pos = geo2xy(p._pos);
+    // p._vel = {kts2ms(p._vel.value), hdg2rad(p._vel.heading)};
+    planes.emplace_back(p);
+  }
+  return planes;
+}
 
 // Scenario parsing
 void to_json(json &j, const Scenario &p) { j = json(p.flights); };

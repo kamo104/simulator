@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
       SimulatorState{std::move(std::make_unique<std::shared_mutex>()),
                      {},
                      {},
-                     std::chrono::milliseconds(1000 / 60)});
+                     std::chrono::milliseconds(1000)});
 
   // End of testing stuff
   serverState->acceptCallback = [&websocketServer,
@@ -48,7 +48,18 @@ int main(int argc, char *argv[]) {
     const auto &aircrafts = simulator->getPlaneData();
     json base = R"({"type":"start","aircrafts":[]})"_json;
     base["aircrafts"] = aircrafts;
+
+    // find the sim_id id
+    const auto it = std::find_if(
+        aircrafts.begin(), aircrafts.end(),
+        [](const data::PlaneData &p) { return p.info.sim_id == true; });
+    base["sim_id"] = -1;
+    if (it != aircrafts.end()) {
+      base["sim_id"] = it->info.id;
+    }
     websocketServer->send(sessionState->uuid, base.dump());
+    std::cerr << "sending init(to: " << sessionState->uuid
+              << "): " << base.dump() << std::endl;
   };
   serverState->disconnectCallback = [&websocketServer](auto sessionState) {
     websocketServer->deleteSession(sessionState->uuid);
@@ -63,28 +74,49 @@ int main(int argc, char *argv[]) {
               << std::endl;
     if (sessionState->nextMsgIsScenario) {
       sessionState->nextMsgIsScenario = false;
-      data::Scenario scenario = json(msg);
+      data::Scenario scenario;
+      try {
+        scenario = json::parse(msg);
+      } catch (const std::exception &e) {
+        std::cerr << "Error parsing the scenario file: " << e.what()
+                  << std::endl;
+        websocketServer->send(sessionState->uuid,
+                              R"({"error":"Couldn't parse the scenario."})");
+
+        return;
+      }
+
       simState->planes = scenario.getPlanes();
 
       const auto &aircrafts = simulator->getPlaneData();
       json base = R"({"type":"start","aircrafts":[]})"_json;
       base["aircrafts"] = aircrafts;
+      // find the sim_id id
+      const auto it = std::find_if(
+          aircrafts.begin(), aircrafts.end(),
+          [](const data::PlaneData &p) { return p.info.sim_id == true; });
+      base["sim_id"] = -1;
+      if (it != aircrafts.end()) {
+        base["sim_id"] = it->info.id;
+      }
+
+      std::cerr << "sending init broadcast: " << base.dump() << std::endl;
       websocketServer->broadcast(base.dump());
+      sleep(1);
 
       // start the simulator here upon receiving the scenario
       simulator->start();
       return;
     }
-    // lock the state to make sure it doesn't change during parsing
     try {
       json jsonMsg = json::parse(msg);
-      // make sure the sim thread is synchronised
+      // lock the state to make sure it doesn't change during parsing
       std::lock_guard<std::shared_mutex> guard(*simState->mtx);
       // parse message here
       messageParsing::parseMessage(jsonMsg, simState, sessionState);
       return;
     } catch (const json::parse_error &er) {
-      std::cerr << "Couldn't parse the json message" << std::endl;
+      std::cerr << "Invalid json message" << std::endl;
     } catch (const json::type_error &er) {
       std::cerr << "Wrong type used during parsing: " << er.what() << std::endl;
     }
