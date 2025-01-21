@@ -1,0 +1,18 @@
+CMake Warning (dev) at CMakeLists.txt:15 (find_package):
+  Policy CMP0167 is not set: The FindBoost module is removed.  Run "cmake
+  --help-policy CMP0167" for policy details.  Use the cmake_policy command to
+  set the policy and suppress this warning.
+
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+make[2]: *** [CMakeFiles/simulator.dir/build.make:188: CMakeFiles/simulator.dir/Sources/websocketServer.cpp.o] Interrupt
+make[2]: *** [CMakeFiles/simulator.dir/build.make:132: CMakeFiles/simulator.dir/Sources/plane.cpp.o] Interrupt
+make[2]: *** [CMakeFiles/simulator.dir/build.make:118: CMakeFiles/simulator.dir/Sources/messageParsing.cpp.o] Interrupt
+make[2]: *** [CMakeFiles/simulator.dir/build.make:160: CMakeFiles/simulator.dir/Sources/session.cpp.o] Interrupt
+make[2]: *** [CMakeFiles/simulator.dir/build.make:104: CMakeFiles/simulator.dir/Sources/listener.cpp.o] Interrupt
+make[2]: *** [CMakeFiles/simulator.dir/build.make:146: CMakeFiles/simulator.dir/Sources/scenario.cpp.o] Interrupt
+make[2]: *** [CMakeFiles/simulator.dir/build.make:76: CMakeFiles/simulator.dir/main.cpp.o] Interrupt
+make[2]: *** [CMakeFiles/simulator.dir/build.make:90: CMakeFiles/simulator.dir/Sources/convertions.cpp.o] Interrupt
+make[2]: *** [CMakeFiles/simulator.dir/build.make:174: CMakeFiles/simulator.dir/Sources/simulator.cpp.o] Interrupt
+make[1]: *** [CMakeFiles/Makefile2:100: CMakeFiles/simulator.dir/all] Interrupt
+make: *** [Makefile:91: all] Interrupt
