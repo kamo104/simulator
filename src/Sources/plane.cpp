@@ -471,7 +471,7 @@ void Plane::generateRunwayWaypoints(bool toFront = true) {
 }
 
 void Plane::generateTakeOffWaypoints(bool toFront = true, double slope = 20) {
-  printf("got here\n");
+
   FlightSegment choice
     = (_flightPlan.setRunway == RUNWAY::R28) ? exitOuter10_1 : exitOuter28_1;
 

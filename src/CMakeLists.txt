@@ -23,7 +23,7 @@ include_directories(${CMAKE_SOURCE_DIR}/Headers)
 
 file(GLOB SRCS "Sources/*.cpp")
 
-add_executable(simulator main.cpp ${SRCS} "Sources/advanced_ai.cpp")
+add_executable(simulator main.cpp ${SRCS} )
 
 target_link_libraries(simulator PRIVATE 
     Boost::system
