@@ -12,6 +12,13 @@
 
 enum class MODE { AUTO, HDG, AUX, GROUNDED };
 
+// TO DO:
+//  fix advanced turning/pathfinding
+//  landing, takoff, airport circle
+//  ground behavior
+//  finish order processing
+
+namespace data {
 struct PlaneInfo {
   int id;
   int sim_id;
@@ -24,13 +31,9 @@ struct PlaneInfo {
   std::string model;
 };
 
-// TO DO:
-//  fix advanced turning/pathfinding
-//  landing, takoff, airport circle
-//  ground behavior
-//  finish order processing
+void to_json(json &j, const PlaneInfo &p);
+void from_json(const json &j, PlaneInfo &p);
 
-namespace data {
 struct PlaneData {
   PlaneInfo info;
   Velocity vel;
@@ -40,7 +43,6 @@ struct PlaneData {
 void to_json(json &j, const PlaneData &p);
 void from_json(const json &j, PlaneData &p);
 
-
 struct PlaneFlightData {
   int id;
   std::string squawk;
@@ -49,8 +51,8 @@ struct PlaneFlightData {
   std::vector<GeoPos<double>> targets;
 };
 
-void to_json(json& j, const PlaneFlightData& p);
-void from_json(const json& j, PlaneFlightData& p);
+void to_json(json &j, const PlaneFlightData &p);
+void from_json(const json &j, PlaneFlightData &p);
 } // namespace data
 
 class Plane {
@@ -58,7 +60,7 @@ class Plane {
 
 public:
   std::string uuid{""};
-  PlaneInfo _info;
+  data::PlaneInfo _info;
   Velocity _vel;
   GeoPos<double> _pos;
 
@@ -68,7 +70,6 @@ public:
 
   controlParam _auxParam;
   bool _declaredEmergency = false;
-
 
   FlightPlan _flightPlan;
   std::shared_ptr<const PlaneConfig> config;
