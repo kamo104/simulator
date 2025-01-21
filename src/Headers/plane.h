@@ -14,7 +14,8 @@
 #include <controlParam.h>
 
 enum class MODE { AUTO, HDG, AUX, GRD, PLAYER };
-enum class GRD_MODE { NONE, TAXI_OUT, IDLE, TAXI_IN, HOLD_RWY, TAKEOFF};
+enum class GRD_MODE { NONE, APPROACH, TAXI_OUT, IDLE, 
+                      TAXI_IN, HOLD_RWY, TAXI_RWY, TAKEOFF};
 
 struct PlaneInfo {
   int id;
@@ -91,8 +92,8 @@ public:
   void generateLandingWaypoints(RUNWAY approach, bool succesful,
             double slopeAngle, double distance );
   void generateTaxiWaypoints(RUNWAY runway);
-  void generateRunwayWaypoints();
-  void generateTakeOffWaypoints();
+  void generateRunwayWaypoints(bool toFront);
+  void generateTakeOffWaypoints(bool toFront, double slope);
 
   // order handling
   void setAltitude(float altitude);
@@ -124,6 +125,7 @@ private:
   bool checkMinRadius();
   void generateHelperWaypoints(FlightSegment targetSegment);
   void setAuxParam();
+  std::vector<GeoPos<double>> getTargets() const;
 
   void addWaypoint(FlightSegment segment, bool toFront = false);
   void setModeHdg();

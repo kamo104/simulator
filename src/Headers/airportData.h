@@ -31,7 +31,7 @@ const FlightSegment exitInner28_4 = {
 };
 
 const FlightSegment exitOuter28_1 = {
-   geo2xy({{52.424803, 16.806835, 0}})
+   geo2xy({{52.424803, 16.806835, 0}}), {0.0, hdg2rad(100) }
 };
 
 const FlightSegment exitOuter28_2 = {
@@ -64,7 +64,7 @@ const FlightSegment exitInner10_4 = {
 };
 
 const FlightSegment exitOuter10_1 = {
-   geo2xy({{52.418352, 16.840292, 0}})
+   geo2xy({{52.418352, 16.840292, 0}}), {0.0, hdg2rad(280) }
 };
 
 const FlightSegment exitOuter10_2 = {

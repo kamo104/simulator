@@ -4,7 +4,7 @@
 #include <deque>
 #include "velocity.h"
 
-enum class RUNWAY { L10, L28 };
+enum class RUNWAY { R10, R28 };
 
 struct FlightSegment {
   GeoPos<double> pos;
@@ -20,5 +20,5 @@ struct FlightPlan {
 
   FlightSegment interTrg = {};
   bool vaildPathFound = true;
-  RUNWAY setRunway = RUNWAY::L10;
+  RUNWAY setRunway = RUNWAY::R10;
 };

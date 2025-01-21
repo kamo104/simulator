@@ -38,13 +38,13 @@ int main(int argc, char *argv[]) {
   //This should be loaded into map from map and used when loading scenario 
   std::shared_ptr<const PlaneConfig> configPtr =
       std::make_shared<const PlaneConfig>(
-          PlaneConfig{40, 160, 12000, 5, 25, 220, 10, 1.35, 2.56, 70, 1000, 
-                      kts2ms(20), kts2ms(30) }); //in sim units
+          PlaneConfig{40, 100, 8000, 3, 20, 150, 10, 1.3, 2.56, 
+              50, 1000, 55, 1200, kts2ms(20), kts2ms(30) }); //in sim units
 
   std::shared_ptr<const PlaneConfig> configPtr2 =
     std::make_shared<const PlaneConfig>(
-      PlaneConfig{ 60.5, 241.9, 12000, 5, 25, 220, 10, 1.35, 2.56, 70, 2000, 
-                   kts2ms(20), kts2ms(30) }); //in sim units
+      PlaneConfig{ 60.5, 241.9, 12000, 5, 25, 220, 10, 1.2, 2.56, 
+          70, 2000, 80, 2500, kts2ms(20), kts2ms(30) }); //in sim units
 
 
   FlightPlan plan0;
@@ -54,11 +54,12 @@ int main(int argc, char *argv[]) {
           Velocity{0, hdg2rad(-50)}, xy2geo(exitInner10_2.pos) },
           plan0, configPtr));
 
-  simState->planes.front().setModePlayer();
-
   FlightPlan plan;
   plan.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.42, 16.82, 10000.0}}),
                                     Velocity{80, hdg2rad(0)}});
+
+  simState->planes.front().setModePlayer();
+
   simState->planes.push_back(
       Plane(data::PlaneData{ {1, false, 10000, "LOT", "286",
           "SP-LVN", "LOT286", "2000", "Mooney Bravo"},
@@ -68,8 +69,7 @@ int main(int argc, char *argv[]) {
   FlightPlan plan2;
   plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.5, 10000.0}}),
                                      Velocity{100, hdg2rad(270)}, true, false });
-  /*plan2.route.push_back(FlightSegment{ geo2xy(GeoPos<double>{{52.5, 16.7, 10000.0}}),
-                                     Velocity{120, hdg2rad(0)}, false, false });*/
+
   simState->planes.push_back(
       Plane(data::PlaneData{ {2, false, 10000, "LOT", "287",
           "SP-XTZ", "LOT287", "2010", "Mooney Bravo"},
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
     Plane(data::PlaneData{ {4, true, 1000, "", "",
         "SP-001", "SP-001", "2000", "Mooney Bravo"},
         Velocity{0, hdg2rad(-20)}, {{52.416081, 16.827386, 0}} },
-      plan2, configPtr));
+      plan, configPtr));
 
 
   // End of testing stuff
@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
              }},
             {"touch_and_go", 
              [it, &jsonMsg]() { 
-              it->landing(jsonMsg["data"]["name"].template get<std::string>()); 
+              it->touchAndGo(jsonMsg["data"]["name"].template get<std::string>());
              }},
             {"enter_runway", [it, &jsonMsg]() { it->enterRunway(); }},
             {"enter_airport_loop",

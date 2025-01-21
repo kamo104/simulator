@@ -18,6 +18,9 @@ struct PlaneConfig {
     double landingSpeed;
     double landingDistance;
 
+    double takeOffSpeed;
+    double takeOffDistance;
+
     double taxiSpeed;
     double taxiMaxSpeed;
 };
