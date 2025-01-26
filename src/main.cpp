@@ -145,8 +145,9 @@ int main(int argc, char *argv[]) {
       } catch (const std::exception &e) {
         std::cerr << "Error parsing the scenario file: " << e.what()
                   << std::endl;
-        websocketServer->send(sessionState->uuid,
-                              R"({"error":"Couldn't parse the scenario."})");
+        websocketServer->send(
+            sessionState->uuid,
+            R"({"type":"error", "data":"Couldn't parse the scenario."})");
         return;
       }
 
@@ -186,8 +187,9 @@ int main(int argc, char *argv[]) {
     } catch (const json::type_error &er) {
       std::cerr << "Wrong type used during parsing: " << er.what() << std::endl;
     }
-    websocketServer->send(sessionState->uuid,
-                          R"({"error":"Couldn't parse the json message."})");
+    websocketServer->send(
+        sessionState->uuid,
+        R"({"type":"error", "data":"Couldn't parse the json message."})");
   };
   serverState->writeCallback = [](auto sessionState, size_t len) {};
   websocketServer = std::make_shared<WebsocketServer>(serverState);
