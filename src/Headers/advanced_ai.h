@@ -1,6 +1,7 @@
 #pragma once
 #include "common.h"
 #include "convertions.h"
+#include <cmath>
 
 struct Waypoint {
     double x;

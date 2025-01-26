@@ -16,9 +16,9 @@ std::pair<Point, Point> computeTangentPoints(const Circlecenter& c1, const Circl
   double d2 = dx * dx + dy * dy;
   double d = std::sqrt(d2);
 
-  if (d < 2 * radius) {
+  if ((c1.isLeft != c2.isLeft) && d < 2 * radius) {
     // No valid tangents
-    return {};
+    return std::pair<Point, Point>({ std::numeric_limits<double>::quiet_NaN(), 0 }, {0, 0});
   }
 
   double r = radius;
@@ -151,10 +151,23 @@ std::vector<Point> generateShortestRoute(const Waypoint& start, const Waypoint& 
 
   // Compute all tangents
   std::vector<Segment> segments;
-  segments.push_back({ start, startCenter1, computeTangentPoints(startCenter1, endCenter1, radius), end, endCenter1 });
-  segments.push_back({ start, startCenter1, computeTangentPoints(startCenter1, endCenter2, radius), end, endCenter2 });
-  segments.push_back({ start, startCenter2, computeTangentPoints(startCenter2, endCenter1, radius), end, endCenter1 });
-  segments.push_back({ start, startCenter2, computeTangentPoints(startCenter2, endCenter2, radius), end, endCenter2 });
+
+  std::pair<Point, Point> tangent = computeTangentPoints(startCenter1, endCenter1, radius);
+  if (!std::isnan(tangent.first.x)) {
+    segments.push_back({ start, startCenter1, tangent, end, endCenter1 });
+  }
+  tangent = computeTangentPoints(startCenter1, endCenter2, radius);
+  if (!std::isnan(tangent.first.x)) {
+    segments.push_back({ start, startCenter1, tangent, end, endCenter2 });
+  }
+  tangent = computeTangentPoints(startCenter2, endCenter1, radius);
+  if (!std::isnan(tangent.first.x)) {
+    segments.push_back({ start, startCenter2, tangent, end, endCenter1 });
+  }
+  tangent = computeTangentPoints(startCenter2, endCenter2, radius);
+  if (!std::isnan(tangent.first.x)) {
+    segments.push_back({ start, startCenter2, tangent, end, endCenter2 });
+  }
 
   //no path found
   if (segments.size() == 0) {
