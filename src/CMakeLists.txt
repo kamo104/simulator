@@ -21,7 +21,9 @@ endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/Headers)
 
-add_executable(simulator main.cpp)
+file(GLOB SRCS "Sources/*.cpp")
+
+add_executable(simulator main.cpp ${SRCS} )
 
 target_link_libraries(simulator PRIVATE 
     Boost::system

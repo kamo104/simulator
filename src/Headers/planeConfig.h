@@ -6,9 +6,21 @@ struct PlaneConfig {
     double maxSpeed;
     double maxAltitude;
 
+    double fuelConsumption;
+
     double deafultClimbingSpeed;
+    double cruiseSpeed;
     double accelerationFactor;
 
     double normalLoad;
     double maxLoad;
+
+    double landingSpeed;
+    double landingDistance;
+
+    double takeOffSpeed;
+    double takeOffDistance;
+
+    double taxiSpeed;
+    double taxiMaxSpeed;
 };
