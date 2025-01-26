@@ -183,6 +183,14 @@ int main(int argc, char *argv[]) {
              [it, &jsonMsg]() {
                it->setVelocity(jsonMsg["data"]["value"].template get<float>());
              }},
+            {"gas",
+             [it, &jsonMsg]() {
+               it->setFuel(jsonMsg["data"]["value"].template get<float>());
+             }},
+            {"verticalspeed",
+             [it, &jsonMsg]() {
+               it->setVerticalSpeed(jsonMsg["data"]["value"].template get<float>());
+             }},
             {"squawk",
              [it, &jsonMsg]() {
                it->setSquawk(
@@ -205,6 +213,7 @@ int main(int argc, char *argv[]) {
             {"enter_runway", [it, &jsonMsg]() { it->enterRunway(); }},
             {"enter_airport_loop",
              [it, &jsonMsg]() { it->takeOff(); }}};
+            
 
         if (fnMap.find(orderType) != fnMap.end()) {
           fnMap[orderType]();

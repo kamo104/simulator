@@ -100,15 +100,18 @@ public:
   void setHeadpoint(GeoPos<double> point);
   void setHeading(float heading);
   void setVelocity(float vel);
+  void setVerticalSpeed(float value);
   void setSquawk(const std::string &sq);
   void followFlightPlan();
   void enterHolding();
   void landing(std::string name);
+  void landing(RUNWAY runway);
   void taxiToRunway(std::string name);
   void enterRunway();
   void touchAndGo(std::string name);
   void takeOff();
   void enterAirportLoop();
+  void setFuel(float value);
   // order handling
 
   void setModePlayer();

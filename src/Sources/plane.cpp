@@ -45,6 +45,7 @@ void from_json(const json &j, PlaneData &p) {
 void to_json(json& j, const PlaneFlightData& p) {
     j = json{ {"id", p.id},
              {"squawk", p.squawk},
+             {"fuel", p.fuel},
              {"velocity",
               {
                   {"direction", p.vel.heading},
@@ -173,8 +174,10 @@ void Plane::updateVelocity(float timeDelta) {
                         std::pow(config->accelerationFactor, 2) 
                         / _vel.value * timeDelta);
 
-  /*if (grdMode != GRD_MODE::NONE && grdMode != GRD_MODE::APPROACH) {
+  /*if (grdMode == GRD_MODE::NONE || grdMode == GRD_MODE::APPROACH) {
     _vel.value = std::min(std::max(_vel.value, config->minSpeed), config->maxSpeed);
+  } else {
+    _vel.value = std::min(std::max(_vel.value, 0.0), config->taxiMaxSpeed);
   }*/
 
   // Heading
@@ -245,8 +248,10 @@ void Plane::updateFlightPlan(bool force, double margin) {
 }
 
 void Plane::updateParameters(float timeDelta) {
-  if (grdMode != GRD_MODE::NONE && grdMode != GRD_MODE::APPROACH) {
+  if (grdMode == GRD_MODE::NONE || grdMode == GRD_MODE::APPROACH) {
     _info.fuel -= config->fuelConsumption * timeDelta;
+  } else {
+    _info.fuel -= config->fuelConsumption * timeDelta * 0.1;
   }
 
   if (grdMode == GRD_MODE::APPROACH && _pos.alt() <= 0.1) {
@@ -260,7 +265,7 @@ double Plane::getTrgVel() {
   if (_auxParam.overwriteVel || mode == MODE::HDG) {
     return _auxParam.vel.value;
   }
-  if (_target.interpolateVel) {
+  if (mode != MODE::HDG && _target.interpolateVel) {
     return _flightPlan.interTrg.vel.value + (_target.vel.value - _flightPlan.interTrg.vel.value) /
       distance(_target.pos, _flightPlan.interTrg.pos) * distance(_pos, _flightPlan.interTrg.pos);
   }
@@ -530,8 +535,10 @@ void Plane::setAltitude(float altitude) {
 
 void Plane::setHeadpoint(GeoPos<double> point) {
   setModeAux();
-  FlightSegment seg = { geo2xy(point), _target.vel, false, false };
+  FlightSegment seg = { geo2xy(point), _target.vel};
   addWaypoint(seg, true);
+  _auxParam.overwriteVel = true;
+  _auxParam.vel.value = _target.vel.value;
 }
 
 void Plane::setHeading(float heading) {
@@ -544,7 +551,7 @@ void Plane::setHeading(float heading) {
 void Plane::setVelocity(float vel) {
   if (mode == MODE::AUX && _target.vel.value == 0.0) return;
   if (mode != MODE::HDG && _target.interpolateVel) return;
-
+  
   _auxParam.overwriteVel = true;
   double val = kts2ms(vel);
   if (grdMode != GRD_MODE::NONE && grdMode != GRD_MODE::APPROACH) {
@@ -553,6 +560,10 @@ void Plane::setVelocity(float vel) {
     val = std::max(std::min(val, config->maxSpeed), config->minSpeed);
   }
   _auxParam.vel.value = val;
+
+  if (grdMode == GRD_MODE::APPROACH) {
+    landing(_flightPlan.setRunway);
+  }
 }
 
 void Plane::setSquawk(const std::string &sq) { this->_info.squawk = sq; }
@@ -569,20 +580,28 @@ void Plane::followFlightPlan() {
 
 void Plane::landing(std::string name) {
   if (grdMode != GRD_MODE::NONE && grdMode != GRD_MODE::APPROACH) return;
+  RUNWAY runway;
+  if (name == "MAPt 28") runway = RUNWAY::R28;
+  else if (name == "MAPt 10") runway = RUNWAY::R10;
+  else return;
 
   _auxParam.overwriteAlt = false;
   _auxParam.overwriteVel = false;
 
   setModeAux();
-  if (name == "MAPt 28") {
-    _flightPlan.setRunway = RUNWAY::R28;
-    generateLandingWaypoints(RUNWAY::R28);
-  } else {
-    _flightPlan.setRunway = RUNWAY::R10;
-    generateLandingWaypoints(RUNWAY::R10);
-  }
+  _flightPlan.setRunway = runway;
+  generateLandingWaypoints(runway);
   grdMode = GRD_MODE::APPROACH;
 }
+
+void Plane::landing(RUNWAY runway) {
+
+  setModeAux();
+  _flightPlan.setRunway = runway;
+  generateLandingWaypoints(runway);
+  grdMode = GRD_MODE::APPROACH;
+}
+
 void Plane::touchAndGo(std::string name) {
   if (grdMode != GRD_MODE::NONE && grdMode != GRD_MODE::APPROACH) return;
 
@@ -633,6 +652,14 @@ void Plane::takeOff() {
     generateTakeOffWaypoints();
     grdMode = GRD_MODE::NONE;
   }
+}
+
+void Plane::setFuel(float value) {
+
+}
+
+void Plane::setVerticalSpeed(float value) {
+  _auxParam.altChange = ft2meter(value);
 }
 
 
