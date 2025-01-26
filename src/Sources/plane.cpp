@@ -55,30 +55,27 @@ void from_json(const json &j, PlaneData &p) {
 //            {"targets", p.targets}};
 // }
 
-
 // to_json function
-void to_json(json& j, const PlaneFlightData& p) {
-    j = json{ {"id", p.id},
-             {"squawk", p.squawk},
-             {"fuel", p.fuel},
-             {"velocity",
-              {
-                  {"direction", p.vel.heading},
-                  {"value", p.vel.value},
-              }},
-             {"position",
-              {{"latitude", p.pos.lat()},
-               {"longitude", p.pos.lon()},
-               {"altitude", p.pos.alt()}}},
-             {"targets", json::array()} };
+void to_json(json &j, const PlaneFlightData &p) {
+  j = json{{"id", p.id},
+           {"squawk", p.squawk},
+           {"fuel", p.fuel},
+           {"velocity",
+            {
+                {"direction", p.vel.heading},
+                {"value", p.vel.value},
+            }},
+           {"position",
+            {{"latitude", p.pos.lat()},
+             {"longitude", p.pos.lon()},
+             {"altitude", p.pos.alt()}}},
+           {"targets", json::array()}};
 
-    for (const auto& target : p.targets) {
-        j["targets"].push_back({
-            {"latitude", target.lat()},
-            {"longitude", target.lon()},
-            {"altitude", target.alt()}
-        });
-    }
+  for (const auto &target : p.targets) {
+    j["targets"].push_back({{"latitude", target.lat()},
+                            {"longitude", target.lon()},
+                            {"altitude", target.alt()}});
+  }
 }
 
 void from_json(const json &j, PlaneFlightData &p) {
@@ -87,7 +84,6 @@ void from_json(const json &j, PlaneFlightData &p) {
   j.at("velocity").get_to(p.vel);
   j.at("position").get_to(p.pos);
   j.at("targets").get_to(p.targets);
-
 }
 // PlaneFlightData parsing
 
@@ -188,9 +184,9 @@ void Plane::updateVelocity(float timeDelta) {
                                        _vel.value * timeDelta);
 
   /*if (grdMode == GRD_MODE::NONE || grdMode == GRD_MODE::APPROACH) {
-    _vel.value = std::min(std::max(_vel.value, config->minSpeed), config->maxSpeed);
-  } else {
-    _vel.value = std::min(std::max(_vel.value, 0.0), config->taxiMaxSpeed);
+    _vel.value = std::min(std::max(_vel.value, config->minSpeed),
+  config->maxSpeed); } else { _vel.value = std::min(std::max(_vel.value, 0.0),
+  config->taxiMaxSpeed);
   }*/
 
   // Heading
@@ -204,7 +200,6 @@ void Plane::updatePosition(float timeDelta) {
   // XY Position
   _pos.lat() += std::sin(_vel.heading) * _vel.value * timeDelta;
   _pos.lon() += std::cos(_vel.heading) * _vel.value * timeDelta;
-
 
   // Altitude
   double altitudeDelta = getTrgAlt() - _pos.alt();
@@ -286,9 +281,10 @@ double Plane::getTrgVel() {
   }
 
   if (mode != MODE::HDG && _target.interpolateVel) {
-    return _flightPlan.interTrg.vel.value + (_target.vel.value - _flightPlan.interTrg.vel.value) /
-      distance(_target.pos, _flightPlan.interTrg.pos) * distance(_pos, _flightPlan.interTrg.pos);
-
+    return _flightPlan.interTrg.vel.value +
+           (_target.vel.value - _flightPlan.interTrg.vel.value) /
+               distance(_target.pos, _flightPlan.interTrg.pos) *
+               distance(_pos, _flightPlan.interTrg.pos);
   }
   return _target.vel.value;
 }
@@ -571,7 +567,7 @@ void Plane::setAltitude(float altitude) {
 
 void Plane::setHeadpoint(GeoPos<double> point) {
   setModeAux();
-  FlightSegment seg = { geo2xy(point), _target.vel};
+  FlightSegment seg = {geo2xy(point), _target.vel};
 
   addWaypoint(seg, true);
   _auxParam.overwriteVel = true;
@@ -587,8 +583,10 @@ void Plane::setHeading(float heading) {
 }
 
 void Plane::setVelocity(float vel) {
-  if (mode == MODE::AUX && _target.vel.value == 0.0) return;
-  if (mode != MODE::HDG && _target.interpolateVel) return;
+  if (mode == MODE::AUX && _target.vel.value == 0.0)
+    return;
+  if (mode != MODE::HDG && _target.interpolateVel)
+    return;
 
   _auxParam.overwriteVel = true;
   double val = kts2ms(vel);
@@ -617,12 +615,15 @@ void Plane::followFlightPlan() {
 }
 
 void Plane::landing(std::string name) {
-  if (grdMode != GRD_MODE::NONE && grdMode != GRD_MODE::APPROACH) return;
+  if (grdMode != GRD_MODE::NONE && grdMode != GRD_MODE::APPROACH)
+    return;
   RUNWAY runway;
-  if (name == "MAPt 28") runway = RUNWAY::R28;
-  else if (name == "MAPt 10") runway = RUNWAY::R10;
-  else return;
-
+  if (name == "MAPt 28")
+    runway = RUNWAY::R28;
+  else if (name == "MAPt 10")
+    runway = RUNWAY::R10;
+  else
+    return;
 
   _auxParam.overwriteAlt = false;
   _auxParam.overwriteVel = false;
@@ -693,15 +694,11 @@ void Plane::takeOff() {
   }
 }
 
-
-void Plane::setFuel(float value) {
-
-}
+void Plane::setFuel(float value) { this->_info.fuel = value; }
 
 void Plane::setVerticalSpeed(float value) {
   _auxParam.altChange = ft2meter(value);
 }
-
 
 void Plane::enterAirportLoop() {}
 void Plane::enterHolding() {}
