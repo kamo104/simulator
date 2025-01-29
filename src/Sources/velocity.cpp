@@ -30,10 +30,10 @@ void from_json(const json &j, Velocity &vel) {
     j.at("heading").get_to(vel.heading);
   } else {
     // scenario sometimes encodes it as a string(?)
-    j.at("direction").get_to(vel.heading);
+    // j.at("direction").get_to(vel.heading);
     switch (j.at("direction").type()) {
     case value_t::string: {
-      vel.value = std::stod(j.at("direction").template get<std::string>());
+      vel.heading = std::stod(j.at("direction").template get<std::string>());
       break;
     }
     case value_t::number_integer:

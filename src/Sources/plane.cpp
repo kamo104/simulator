@@ -568,6 +568,9 @@ void Plane::setAltitude(float altitude) {
 void Plane::setHeadpoint(GeoPos<double> point) {
   setModeAux();
   FlightSegment seg = {geo2xy(point), _target.vel};
+  if (point.alt() <= 0) {
+    seg.pos.alt() = _target.pos.alt();
+  }
 
   addWaypoint(seg, true);
   _auxParam.overwriteVel = true;

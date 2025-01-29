@@ -3,12 +3,12 @@
 
 namespace data {
 FlightSegment ScenarioWaypoint::asFlightSegment(const ScenarioWaypoint &wp) {
-  // return FlightSegment{
-  //     geo2xy(wp.position),
-  //     {kts2ms(wp.velocity.value), hdg2rad(wp.velocity.heading)},
-  //     false};
   return FlightSegment{
-      wp.position, {wp.velocity.value, wp.velocity.heading}, false};
+      geo2xy(wp.position),
+      {kts2ms(wp.velocity.value), hdg2rad(wp.velocity.heading)},
+      false};
+  // return FlightSegment{
+  //     wp.position, {wp.velocity.value, wp.velocity.heading}, false};
 }
 FlightSegment ScenarioWaypoint::asFlightSegment() const {
   return ScenarioWaypoint::asFlightSegment(*this);
@@ -36,8 +36,8 @@ void from_json(const json &j, ScenarioWaypoint &p) {
   j.at("fuel_state").get_to(p.fuel_state);
   j.at("weather").get_to(p.weather);
   j.at("Events").get_to(p.events);
-  // j.at("position").get_to(p.position);
-  // j.at("velocity").get_to(p.velocity);
+  j.at("position").get_to(p.position);
+  j.at("velocity").get_to(p.velocity);
 
   // conversion to the internal repr
   // p.position = geo2xy(p.position);
@@ -73,7 +73,7 @@ void from_json(const json &j, ScenarioFlight &p) {
   j["destination"].get_to(p.destination);
   j["alternative_airports"].get_to(p.alternative_airports);
   j["weather"].get_to(p.weather);
-  // j["items"].get_to(p.waypoints);
+  j["items"].get_to(p.waypoints);
   return;
 };
 // ScenarioFlight parsing
