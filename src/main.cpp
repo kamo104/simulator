@@ -32,8 +32,9 @@ int main(int argc, char *argv[]) {
       SimulatorState{std::move(std::make_unique<std::shared_mutex>()),
                      {},
                      {},
-                     std::chrono::duration_cast<std::chrono::seconds>(
-                         std::chrono::duration<double>(1 / 60))});
+                     // std::chrono::duration_cast<std::chrono::seconds>(
+                     //     std::chrono::duration<double>(1 / 60))});
+                     std::chrono::microseconds(16666)});
 
   serverState->acceptCallback = [&websocketServer,
                                  &simulator](auto sessionState) {

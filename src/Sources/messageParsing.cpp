@@ -56,7 +56,6 @@ void positions(const json &msg, std::shared_ptr<SimulatorState> simState) {
     if (it != planeData.end()) {
       plane.setFlightData(*it);
       plane.setModePlayer();
-      std::cerr << "THIS PLANE IS A PLAYER: " << it->id << std::endl;
     }
   }
 }
