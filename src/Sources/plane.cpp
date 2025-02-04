@@ -83,7 +83,10 @@ void from_json(const json &j, PlaneFlightData &p) {
   j.at("squawk").get_to(p.squawk);
   j.at("velocity").get_to(p.vel);
   j.at("position").get_to(p.pos);
-  j.at("targets").get_to(p.targets);
+  auto it = j.find("targets");
+  if (it != j.end()) {
+    j.at("targets").get_to(p.targets);
+  }
 }
 // PlaneFlightData parsing
 
@@ -103,11 +106,11 @@ data::PlaneData Plane::getData() const {
 }
 
 void Plane::setFlightData(const data::PlaneFlightData &pd) {
-  // TODO: maybe implement a better function of setting the data
   this->_pos = geo2xy(pd.pos);
   this->_vel.heading = pd.vel.heading;
   this->_vel.value = kts2ms(pd.vel.value);
-  // this->_target.pos = geo2xy(pd.targets.front());
+  this->_info.squawk = pd.squawk;
+  this->_info.fuel = pd.fuel;
 }
 data::PlaneFlightData Plane::getFlightData() const {
   // <<<<<<< HEAD

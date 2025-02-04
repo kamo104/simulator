@@ -46,18 +46,6 @@ void order(const json &msg, std::shared_ptr<SimulatorState> simState) {
   }
 }
 void positions(const json &msg, std::shared_ptr<SimulatorState> simState) {
-  // std::vector<data::PlaneData> planeData = msg["aircrafts"];
-  // for (Plane &plane : simState->planes) {
-  //   auto it = std::find_if(planeData.begin(), planeData.end(),
-  //                          [&plane](const data::PlaneData &p) {
-  //                            return p.info.id == plane._info.id;
-  //                          });
-  //   if (it != planeData.end()) {
-  //     plane.setData(*it);
-  //   }
-  // }
-  //       } else if (msgType == "positions") {
-  //         // TODO: update the simulation with the "real" planes's
   std::vector<data::PlaneFlightData> planeData =
       msg["aircrafts"].template get<std::vector<data::PlaneFlightData>>();
   for (Plane &plane : simState->planes) {
@@ -67,6 +55,8 @@ void positions(const json &msg, std::shared_ptr<SimulatorState> simState) {
                            });
     if (it != planeData.end()) {
       plane.setFlightData(*it);
+      plane.setModePlayer();
+      std::cerr << "THIS PLANE IS A PLAYER: " << it->id << std::endl;
     }
   }
 }

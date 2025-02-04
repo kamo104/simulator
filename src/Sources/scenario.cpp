@@ -85,14 +85,9 @@ std::vector<Plane> Scenario::getPlanes() {
     // TODO: create PlaneConfig based on the type_of_aircraft
     std::shared_ptr<const PlaneConfig> configPtr =
         std::make_shared<const PlaneConfig>(
-            // PlaneConfig{60.5, 241.9, 12000, 25, 20, 1.35, 2.56, 70, 30,
-            // 1000});
             PlaneConfig{60.5, 241.9, 12000, 5, 25, 220, 10, 1.2, 2.56, 70, 2000,
                         80, 2500, kts2ms(20), kts2ms(30)});
     Plane p = Plane(flight.planeData, flight.asFlightPlan(), configPtr);
-    // conversion to the internal repr
-    // p._pos = geo2xy(p._pos);
-    // p._vel = {kts2ms(p._vel.value), hdg2rad(p._vel.heading)};
     planes.emplace_back(p);
   }
   return planes;
